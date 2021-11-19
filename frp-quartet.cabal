@@ -25,6 +25,7 @@ source-repository head
 
 library
   exposed-modules:
+      FirstExample
       FRPQuartet
   other-modules:
       Paths_frp_quartet
