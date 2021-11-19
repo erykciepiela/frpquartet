@@ -58,7 +58,7 @@ instance ProductToProduct WriteEntity where
 
 instance ProductToSum WriteEntity where
   p2sUnit = WriteEntity $ \_ -> return ()
-  isa ||| isb = WriteEntity $ \aorb -> either (runWriteEntity isa) (runWriteEntity isb) aorb
+  ea ||| eb = WriteEntity $ \aorb -> either (runWriteEntity ea) (runWriteEntity eb) aorb
 
 instance Contravariant WriteEntity where
   contramap f ie = WriteEntity $ runWriteEntity ie . f
@@ -111,7 +111,7 @@ newtype WriteStream a = WriteStream { runWriteStream :: a -> IO () }
 
 instance ProductToSum WriteStream where
   p2sUnit = WriteStream $ \_ -> return ()
-  isa ||| isb = WriteStream $ \aorb -> either (runWriteStream isa) (runWriteStream isb) aorb
+  sa ||| sb = WriteStream $ \aorb -> either (runWriteStream sa) (runWriteStream sb) aorb
 
 instance ProductToProduct WriteStream where
   p2pUnit = WriteStream $ \_ -> return ()
