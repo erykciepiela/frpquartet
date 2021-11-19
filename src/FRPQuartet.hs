@@ -2,9 +2,11 @@ module FRPQuartet where
 
 import           Data.Functor.Contravariant (Contravariant(..))
 import           Data.Void                  (Void)
-import Data.IORef (newIORef, writeIORef, readIORef)
+import Data.IORef (newIORef, writeIORef, readIORef, modifyIORef)
 import Control.Concurrent (putMVar, newEmptyMVar, takeMVar)
 import Control.Monad (forever)
+import Data.Traversable (for)
+import Data.Foldable (for_)
 
 -- | Notice no @Functor f@ nor @Contravariant f@ constraint
 -- laws:
@@ -124,8 +126,13 @@ mkEntity a = do
 
 mkStream :: IO (Stream a)
 mkStream = do
-  mvar <- newEmptyMVar
+  mvarsRef <- newIORef []
   return $ Stream
-    { writeStream = WriteStream $ putMVar mvar
-    , readStream = ReadStream $ \action -> forever $ takeMVar mvar >>= action
+    { writeStream = WriteStream $ \a -> do
+        mvars <- readIORef mvarsRef
+        for_ mvars $ \mvar -> putMVar mvar a
+    , readStream = ReadStream $ \action -> do
+        mvar <- newEmptyMVar
+        modifyIORef mvarsRef (mvar:)
+        forever $ takeMVar mvar >>= action
     }

@@ -3,6 +3,7 @@ module Main where
 import FRPQuartet
 import Data.Char (toUpper)
 import Data.Functor.Contravariant
+import Control.Concurrent (forkIO, threadDelay)
 
 main :: IO ()
 main = do
@@ -29,5 +30,30 @@ main = do
   runReadEntity (p2pCompose (readEntity firstName, readEntity lastName)) >>= print
 
   -- TODO example with of streams
+  messages <- mkStream
+  temperatures <- mkStream
+  let notifications = p2sCompose (messages, temperatures)
 
+  -- read primitive stream
+  forkIO $ runReadStream (readStream messages) putStrLn
+  forkIO $ runReadStream (readStream temperatures) print
+  -- read complex stream
+  forkIO $ runReadStream (readStream notifications) print
+  -- fmap reading stream
+  forkIO $ runReadStream ((<> "!") <$> readStream messages) putStrLn
+
+  getLine
+  -- write primitive stream
+  runWriteStream (writeStream messages) "Hello"
+  getLine
+  -- write primitive stream
+  runWriteStream (writeStream temperatures) 23
+  getLine
+  -- write complex stream
+  runWriteStream (writeStream notifications) (Left "World")
+  getLine
+  -- contramap writing stream
+  runWriteStream ((<> "!!!") >$< writeStream messages) "Greetings"
+
+  threadDelay 1000000
   return ()
