@@ -35,12 +35,12 @@ main = do
   let notifications = p2sCompose (messages, temperatures)
 
   -- read primitive stream
-  forkIO $ runReadStream (readStream messages) putStrLn
-  forkIO $ runReadStream (readStream temperatures) print
+  runReadStream (readStream messages) putStrLn
+  runReadStream (readStream temperatures) print
   -- read complex stream
-  forkIO $ runReadStream (readStream notifications) print
+  runReadStream (readStream notifications) print
   -- fmap reading stream
-  forkIO $ runReadStream ((<> "!") <$> readStream messages) putStrLn
+  runReadStream ((<> "!") <$> readStream messages) putStrLn
 
   getLine
   -- write primitive stream

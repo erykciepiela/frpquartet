@@ -3,8 +3,8 @@ module FRPQuartet where
 import           Data.Functor.Contravariant (Contravariant(..))
 import           Data.Void                  (Void)
 import Data.IORef (newIORef, writeIORef, readIORef, modifyIORef)
-import Control.Concurrent (putMVar, newEmptyMVar, takeMVar)
-import Control.Monad (forever)
+import Control.Concurrent (putMVar, newEmptyMVar, takeMVar, forkIO)
+import Control.Monad (forever, void)
 import Data.Traversable (for)
 import Data.Foldable (for_)
 
@@ -134,5 +134,5 @@ mkStream = do
     , readStream = ReadStream $ \action -> do
         mvar <- newEmptyMVar
         modifyIORef mvarsRef (mvar:)
-        forever $ takeMVar mvar >>= action
+        void $ forkIO $ forever $ takeMVar mvar >>= action
     }
