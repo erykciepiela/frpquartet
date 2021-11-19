@@ -1,9 +1,8 @@
 module FirstExample where
 
 import FRPQuartet
-import Data.Char (toUpper)
 import Data.Functor.Contravariant
-import Control.Concurrent (forkIO, threadDelay)
+import Control.Concurrent
 
 main :: IO ()
 main = do
@@ -11,6 +10,10 @@ main = do
   middleName <- entity "Ferguson"
   lastName <- entity "Doe"
   let fullName = firstName |&| middleName |&| lastName
+  pressure <- stream
+  temperature <- stream
+  wind <- stream
+  let wheatherInfo = pressure ||| temperature ||| wind
 
   -- write primitive entity
   runWriteEntity (writeEntity firstName) "Sam"
@@ -18,7 +21,7 @@ main = do
   runWriteEntity (writeEntity fullName) ("Paul", ("Adam", "Smith"))
   -- contramap writing entity
   runWriteEntity (reverse >$< writeEntity lastName) "namweN"
-  -- compose writing entity
+  -- compose writing entities
   runWriteEntity (writeEntity firstName |&| writeEntity lastName) ("Henry", "Ford")
 
   -- read primitive entity
@@ -27,13 +30,8 @@ main = do
   runReadEntity (readEntity fullName) >>= print
   -- fmap reading entity
   runReadEntity (take 3 <$> readEntity lastName) >>= print
-  -- compose reading entity
+  -- compose reading entities
   runReadEntity (readEntity firstName |&| readEntity lastName) >>= print
-
-  pressure <- stream
-  temperature <- stream
-  wind <- stream
-  let wheatherInfo = pressure ||| temperature ||| wind
 
   -- read primitive stream
   runReadStream (readStream pressure) print
@@ -42,7 +40,7 @@ main = do
   runReadStream (readStream wheatherInfo) print
   -- fmap reading stream
   runReadStream ((+ 10) <$> readStream pressure) print
-  -- compose reading stream
+  -- compose reading streams
   runReadStream (readStream pressure ||| readStream temperature) print
 
   -- write primitive stream
@@ -53,7 +51,7 @@ main = do
   getLine; runWriteStream (writeStream wheatherInfo) (Right (Left 23.8))
   -- contramap writing stream
   getLine; runWriteStream ((+ 2) >$< writeStream pressure) 999
-  -- compose writing stream
+  -- compose writing streams
   getLine; runWriteStream (writeStream pressure ||| writeStream temperature) (Right 19)
 
   -- wait for propagation
