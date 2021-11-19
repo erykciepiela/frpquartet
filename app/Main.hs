@@ -9,12 +9,12 @@ main :: IO ()
 main = do
   firstName <- mkEntity "John"
   lastName <- mkEntity "Doe"
-  let name = p2pCompose (firstName, lastName)
+  let fullName = p2pCompose (firstName, lastName)
 
   -- write primitive entity
   runWriteEntity (writeEntity firstName) "Sam"
   -- write complex entity
-  runWriteEntity (writeEntity name) ("Paul", "Smith")
+  runWriteEntity (writeEntity fullName) ("Paul", "Smith")
   -- contramap writing entity
   runWriteEntity (fmap toUpper >$< writeEntity lastName) "newman"
   -- compose writing entity
@@ -23,7 +23,7 @@ main = do
   -- read primitive entity
   runReadEntity (readEntity lastName) >>= print
   -- read complex entity
-  runReadEntity (readEntity name) >>= print
+  runReadEntity (readEntity fullName) >>= print
   -- fmap reading entity
   runReadEntity (take 3 <$> readEntity lastName) >>= print
   -- compose reading entity
@@ -41,18 +41,14 @@ main = do
   -- fmap reading stream
   runReadStream ((<> "!") <$> readStream messages) putStrLn
 
-  getLine
   -- write primitive stream
-  runWriteStream (writeStream messages) "Hello"
-  getLine
-  -- write primitive stream
-  runWriteStream (writeStream temperatures) 23
-  getLine
+  getLine; runWriteStream (writeStream messages) "Hello"
+  getLine; runWriteStream (writeStream temperatures) 23
   -- write complex stream
-  runWriteStream (writeStream notifications) (Left "World")
-  getLine
+  getLine; runWriteStream (writeStream notifications) (Left "World")
   -- contramap writing stream
-  runWriteStream ((<> "!!!") >$< writeStream messages) "Greetings"
+  getLine; runWriteStream ((<> "!!!") >$< writeStream messages) "Greetings"
 
+  -- wait for propagation
   threadDelay 1000000
   return ()
