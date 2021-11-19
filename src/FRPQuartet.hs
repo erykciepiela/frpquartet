@@ -50,15 +50,16 @@ instance Functor ReadEntity where
 -- | ReadEntity instantiates ProductToProduct and additionally Contravariant
 newtype WriteEntity a = WriteEntity { runWriteEntity :: a -> IO () }
 
+instance ProductToSum WriteEntity where
+  p2sUnit = WriteEntity $ \_ -> return ()
+  ea ||| eb = WriteEntity $ \aorb -> either (runWriteEntity ea) (runWriteEntity eb) aorb
+
 instance ProductToProduct WriteEntity where
   p2pUnit = WriteEntity $ \_ -> return ()
   iea |&| ieb = WriteEntity $ \(a, b) -> do
     runWriteEntity iea a
     runWriteEntity ieb b
 
-instance ProductToSum WriteEntity where
-  p2sUnit = WriteEntity $ \_ -> return ()
-  ea ||| eb = WriteEntity $ \aorb -> either (runWriteEntity ea) (runWriteEntity eb) aorb
 
 instance Contravariant WriteEntity where
   contramap f ie = WriteEntity $ runWriteEntity ie . f
