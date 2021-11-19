@@ -29,7 +29,6 @@ main = do
   -- compose reading entity
   runReadEntity (p2pCompose (readEntity firstName, readEntity lastName)) >>= print
 
-  -- TODO example with of streams
   messages <- mkStream
   temperatures <- mkStream
   let notifications = p2sCompose (messages, temperatures)
