@@ -108,6 +108,11 @@ newtype WriteStream a = WriteStream { runWriteStream :: a -> IO () }
 instance ProductToSum WriteStream where
   p2sUnit = WriteStream $ \_ -> return ()
   isa ||| isb = WriteStream $ \aorb -> either (runWriteStream isa) (runWriteStream isb) aorb
+instance ProductToProduct WriteStream where
+  p2pUnit = WriteStream $ \_ -> return ()
+  isa |&| isb = WriteStream $ \(a, b) -> do
+    runWriteStream isa a
+    runWriteStream isb b
 
 instance Contravariant WriteStream where
   contramap f is = WriteStream $ runWriteStream is . f
