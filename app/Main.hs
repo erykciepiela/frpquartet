@@ -7,9 +7,9 @@ import Control.Concurrent (forkIO, threadDelay)
 
 main :: IO ()
 main = do
-  firstName <- mkEntity "John"
-  lastName <- mkEntity "Doe"
-  let fullName = p2pCompose (firstName, lastName)
+  firstName <- entity "John"
+  lastName <- entity "Doe"
+  let fullName = firstName |&| lastName
 
   -- write primitive entity
   runWriteEntity (writeEntity firstName) "Sam"
@@ -18,7 +18,7 @@ main = do
   -- contramap writing entity
   runWriteEntity (fmap toUpper >$< writeEntity lastName) "newman"
   -- compose writing entity
-  runWriteEntity (p2pCompose (writeEntity firstName, writeEntity lastName)) ("Henry", "Ford")
+  runWriteEntity (writeEntity firstName |&| writeEntity lastName) ("Henry", "Ford")
 
   -- read primitive entity
   runReadEntity (readEntity lastName) >>= print
@@ -27,11 +27,11 @@ main = do
   -- fmap reading entity
   runReadEntity (take 3 <$> readEntity lastName) >>= print
   -- compose reading entity
-  runReadEntity (p2pCompose (readEntity firstName, readEntity lastName)) >>= print
+  runReadEntity (readEntity firstName |&| readEntity lastName) >>= print
 
-  messages <- mkStream
-  temperatures <- mkStream
-  let notifications = p2sCompose (messages, temperatures)
+  messages <- stream
+  temperatures <- stream
+  let notifications = messages ||| temperatures
 
   -- read primitive stream
   runReadStream (readStream messages) putStrLn
@@ -48,6 +48,8 @@ main = do
   getLine; runWriteStream (writeStream notifications) (Left "World")
   -- contramap writing stream
   getLine; runWriteStream ((<> "!!!") >$< writeStream messages) "Greetings"
+  -- compose writing stream
+  getLine; runWriteStream (writeStream messages ||| writeStream temperatures) (Right 19)
 
   -- wait for propagation
   threadDelay 1000000

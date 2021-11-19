@@ -15,7 +15,8 @@ import Data.Foldable (for_)
 -- p2pCompose (u, p2pCompose (w, z)) ~= p2pCompose (p2pCompose (u, w), z)
 class ProductToProduct f where
   p2pUnit :: f ()
-  p2pCompose :: (f a, f b) -> f (a, b)
+  (|&|) :: f a -> f b -> f (a, b)
+  infixr 1 |&|
 
 -- | Entity instantiates ProductToProduct
 -- i.e. p2pCompose :: (Entity a, Entity b) -> Entity (a, b)
@@ -31,9 +32,9 @@ instance ProductToProduct Entity where
     { writeEntity = p2pUnit
     , readEntity = p2pUnit
     }
-  p2pCompose (ea, eb) = Entity
-    { writeEntity = p2pCompose (writeEntity ea, writeEntity eb)
-    , readEntity = p2pCompose (readEntity ea, readEntity eb)
+  ea |&| eb = Entity
+    { writeEntity = writeEntity ea |&| writeEntity eb
+    , readEntity = readEntity ea |&| readEntity eb
     }
 
 -- | ReadEntity instantiates ProductToProduct and additionally Functor
@@ -41,7 +42,7 @@ newtype ReadEntity a = ReadEntity { runReadEntity :: IO a }
 
 instance ProductToProduct ReadEntity where
   p2pUnit = ReadEntity $ return ()
-  p2pCompose (oea, oeb) = ReadEntity $ (,) <$> runReadEntity oea <*> runReadEntity oeb
+  oea |&| oeb = ReadEntity $ (,) <$> runReadEntity oea <*> runReadEntity oeb
 
 instance Functor ReadEntity where
   fmap f oe = ReadEntity $ f <$> runReadEntity oe
@@ -51,7 +52,7 @@ newtype WriteEntity a = WriteEntity { runWriteEntity :: a -> IO () }
 
 instance ProductToProduct WriteEntity where
   p2pUnit = WriteEntity $ \_ -> return ()
-  p2pCompose (iea, ieb) = WriteEntity $ \(a, b) -> do
+  iea |&| ieb = WriteEntity $ \(a, b) -> do
     runWriteEntity iea a
     runWriteEntity ieb b
 
@@ -65,7 +66,10 @@ instance Contravariant WriteEntity where
 -- | p2sCompose (u, p2sCompose (w, z)) ~= p2sCompose (p2sCompose (u, w), z)
 class ProductToSum f where
   p2sUnit :: f Void
-  p2sCompose :: (f a, f b) -> f (Either a b)
+  -- p2sCompose :: (f a, f b) -> f (Either a b)
+  (|||) :: f a -> f b -> f (Either a b)
+  infixr 1 |||
+
 
 -- | Stream instatiates ProductToSum
 -- i.e. p2cCompose :: (Stream a, Stream b) -> Stream (Either a b)
@@ -81,9 +85,9 @@ instance ProductToSum Stream where
     { writeStream = p2sUnit
     , readStream = p2sUnit
     }
-  p2sCompose (ea, eb) = Stream
-    { writeStream = p2sCompose (writeStream ea, writeStream eb)
-    , readStream = p2sCompose (readStream ea, readStream eb)
+  ea ||| eb = Stream
+    { writeStream = writeStream ea ||| writeStream eb
+    , readStream = readStream ea ||| readStream eb
     }
 
 -- | ReadStream instantiates ProductToSum and additionally Functor
@@ -91,7 +95,7 @@ newtype ReadStream a = ReadStream { runReadStream :: (a -> IO ()) -> IO () }
 
 instance ProductToSum ReadStream where
   p2sUnit = ReadStream $ \_ -> return ()
-  p2sCompose (osa, osb) = ReadStream $ \aorb2io -> do
+  osa ||| osb = ReadStream $ \aorb2io -> do
     runReadStream osa $ aorb2io . Left
     runReadStream osb $ aorb2io . Right
 
@@ -103,7 +107,7 @@ newtype WriteStream a = WriteStream { runWriteStream :: a -> IO () }
 
 instance ProductToSum WriteStream where
   p2sUnit = WriteStream $ \_ -> return ()
-  p2sCompose (isa, isb) = WriteStream $ \aorb -> either (runWriteStream isa) (runWriteStream isb) aorb
+  isa ||| isb = WriteStream $ \aorb -> either (runWriteStream isa) (runWriteStream isb) aorb
 
 instance Contravariant WriteStream where
   contramap f is = WriteStream $ runWriteStream is . f
@@ -116,16 +120,16 @@ captureEntityChange = undefined
 
 --
 
-mkEntity :: a -> IO (Entity a)
-mkEntity a = do
+entity :: a -> IO (Entity a)
+entity a = do
   ref <- newIORef a
   return $ Entity
     { writeEntity = WriteEntity $ writeIORef ref
     , readEntity = ReadEntity $ readIORef ref
     }
 
-mkStream :: IO (Stream a)
-mkStream = do
+stream :: IO (Stream a)
+stream = do
   mvarsRef <- newIORef []
   return $ Stream
     { writeStream = WriteStream $ \a -> do
