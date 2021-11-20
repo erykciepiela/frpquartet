@@ -1,7 +1,8 @@
 {-# LANGUAGE TypeApplications #-}
 module FirstExample where
 
-import FRPQuartet
+import Quartet
+import FRP
 import Data.Functor.Contravariant
 import Control.Concurrent
 import Control.Monad.Identity (Identity(runIdentity))

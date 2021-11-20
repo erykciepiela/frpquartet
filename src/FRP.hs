@@ -1,11 +1,5 @@
-module FRPQuartet
-  ( P2P (nothing, (|&|))
-  , constant
-  , null
-  , P2S (never, (|||))
-  , empty
-  , Static (..)
-  , Ref (..)
+module FRP
+  ( Ref (..)
   , ref
   , ReadEntity (..)
   , Write (..)
@@ -13,115 +7,21 @@ module FRPQuartet
   , topic
   , ReadStream (..)
   , write
-  , FRPQuartet.read
+  , FRP.read
   , subscribe
-  , FRPQuartet.readIO
+  , FRP.readIO
   ) where
 
-import           Control.Concurrent         (forkIO, newEmptyMVar, putMVar,
-                                             takeMVar)
-import           Control.Monad              (forever, void)
-import           Control.Monad.Writer       (WriterT (WriterT, runWriterT))
-import           Data.Foldable              (for_)
-import           Data.Functor.Contravariant (Contravariant (..), (>$<))
-import           Data.Functor.Identity      (Identity (Identity, runIdentity))
-import           Data.IORef                 (modifyIORef, newIORef, readIORef,
-                                             writeIORef)
-import           Data.Traversable           (for)
-import           Data.Void                  (Void, absurd)
-import           Prelude                    hiding (null)
-
--- | Notice no @Functor f@ nor @Contravariant f@ constraint
--- laws:
--- u |&| nothing ~= u
--- nothing |&| u ~= u
--- (u |&| w) |&| z ~= u |&| (w |&| z)
-class P2P f where
-  nothing :: f ()
-  (|&|) :: f a -> f b -> f (a, b)
-  infixr 1 |&|
-
--- notice: (this function is not exported, it's just for documentation)
-_nothingRef :: Ref ()
-_nothingRef = nothing
-
--- notice: (this function is not exported, it's just for documentation)
-_nothingReadEntity :: ReadEntity ()
-_nothingReadEntity = nothing
-
--- notice: (this function is not exported, it's just for documentation)
-_nothingWrite :: Write ()
-_nothingWrite = nothing
-
-constant :: (Functor f, P2P f) => a -> f a
-constant a = a <$ nothing
-
--- notice: (this function is not exported, it's just for documentation)
-_constantReadEntity :: a -> ReadEntity a
-_constantReadEntity = constant
-
-null :: (Contravariant f, P2P f) => f a
-null = () >$ nothing
-
--- notice: (this function is not exported, it's just for documentation)
-_nullWriteEntity :: Write a
-_nullWriteEntity = null
-
--- notice: (this function is not exported, it's just for documentation)
-_nullWriteStream :: Write a
-_nullWriteStream = null
-
--- | Notice no @Functor f@ nor @Contravariant f@ constraint
--- | laws:
--- | u ||| never ~= u
--- | never ||| u ~= u
--- | (u ||| w) ||| z ~= u ||| (w ||| z)
-class P2S f where
-  never :: f Void
-  (|||) :: f a -> f b -> f (Either a b)
-  infixr 1 |||
-
--- notice: (this function is not exported, it's just for documentation)
-_neverTopic :: Topic Void
-_neverTopic = never
-
--- notice: (this function is not exported, it's just for documentation)
-_neverReadStream :: ReadStream Void
-_neverReadStream = never
-
--- notice: (this function is not exported, it's just for documentation)
-_neverWrite :: Write Void
-_neverWrite = never
-
-empty :: (Functor f, P2S f) => f a
-empty = absurd <$> never
-
--- notice: (this function is not exported, it's just for documentation)
-_emptyReadStream :: ReadStream a
-_emptyReadStream = empty
-
--- notice: (this function is not exported, it's just for documentation)
--- you cannot create ad-hoc arbitrary contravariant P2S
--- if you need to create ad-hoc arbitrary contravariant you have to use P2P and @null@
-_nullP2S :: (Contravariant f, P2S f) => (a -> Void) -> f a
-_nullP2S f = f >$< never
-
-newtype Static f p a = Static { runStatic :: f (p a) }
-
-instance (Functor p, Applicative f) => Functor (Static f p) where
-  fmap f s = Static $ fmap f <$> runStatic s
-
-instance (Contravariant p, Applicative f) => Contravariant (Static f p) where
-  contramap f s = Static $ contramap f <$> runStatic s
-
-instance (P2P p, Applicative f) => P2P (Static f p) where
-  nothing = Static $ pure nothing
-  sa |&| sb = Static $ (|&|) <$> runStatic sa <*> runStatic sb
-
-instance (P2S p, Applicative f) => P2S (Static f p) where
-  never = Static $ pure never
-  sa ||| sb = Static $ (|||) <$> runStatic sa <*> runStatic sb
-
+import Quartet
+import Prelude hiding (null)
+import Data.Functor.Contravariant
+import Data.Void
+import Control.Monad.Writer
+import Control.Monad.Identity
+import Data.IORef
+import Data.Foldable (for_)
+import Control.Concurrent.MVar
+import Control.Concurrent
 
 -- | Ref instantiates P2P
 -- i.e. |&| :: Ref a -> Ref b -> Ref (a, b)
@@ -244,3 +144,40 @@ subscribe siea callback = let (doReadStream, meta) = (runIdentity . runWriterT .
             in do
               print meta
               runReadStream doReadStream callback
+
+-- last but not least, things for free (these functions are not exported, it's just for documentation)
+
+_nothingRef :: Ref ()
+_nothingRef = nothing
+
+_nothingReadEntity :: ReadEntity ()
+_nothingReadEntity = nothing
+
+_nothingWrite :: Write ()
+_nothingWrite = nothing
+
+_constantReadEntity :: a -> ReadEntity a
+_constantReadEntity = constant
+
+_nullWriteEntity :: Write a
+_nullWriteEntity = null
+
+_nullWriteStream :: Write a
+_nullWriteStream = null
+
+_neverTopic :: Topic Void
+_neverTopic = never
+
+_neverReadStream :: ReadStream Void
+_neverReadStream = never
+
+_neverWrite :: Write Void
+_neverWrite = never
+
+_emptyReadStream :: ReadStream a
+_emptyReadStream = empty
+
+-- you cannot create ad-hoc arbitrary contravariant P2S
+-- if you need to create ad-hoc arbitrary contravariant you have to use P2P and @null@
+_nullP2S :: (Contravariant f, P2S f) => (a -> Void) -> f a
+_nullP2S f = f >$< never
