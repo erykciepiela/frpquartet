@@ -72,6 +72,8 @@ main = do
   getLine; runWriteStream (writeStream pressure |&| writeStream temperature) (1021, 21)
   -- write to null stream
   getLine; runWriteStream null 17
+  -- filter stream
+  getLine; runWriteStream (null ||| writeStream temperature) (Right 19)
 
   -- wait for propagation
   threadDelay 1000000
