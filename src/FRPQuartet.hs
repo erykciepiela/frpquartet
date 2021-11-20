@@ -20,9 +20,11 @@ class P2P f where
   (|&|) :: f a -> f b -> f (a, b)
   infixr 1 |&|
 
+-- reading entity
 constant :: (Functor f, P2P f) => a -> f a
 constant a = a <$ nothing
 
+-- writing entity or stream
 null :: (Contravariant f, P2P f) => f a
 null = () >$ nothing
 
@@ -36,12 +38,15 @@ class P2S f where
   (|||) :: f a -> f b -> f (Either a b)
   infixr 1 |||
 
+-- reading stream
 empty :: (Functor f, P2S f) => f a
 empty = absurd <$> never
 
--- this is "abstract nonsense"
-full :: (Contravariant f, P2S f) => (a -> Void) -> f a
-full f = f >$< never
+-- this is "abstract nonsense": I can create ad-hoc arbitrary write-stream if you give me Void
+-- this means: we can't have ad-hoc `WriteStream a`
+-- it proves WriteStream must instantiate P2P, then we can just use @null@
+nullStream :: (Contravariant f, P2S f) => (a -> Void) -> f a
+nullStream f = f >$< never
 
 newtype Static f p a = Static { runStatic :: f (p a) }
 

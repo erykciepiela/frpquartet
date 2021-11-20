@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 module FirstExample where
 
 import FRPQuartet
@@ -28,7 +29,7 @@ main = do
   foo (writeRef firstName |&| writeRef lastName) ("Henry", "Ford")
   -- compose writing entities
   foo (writeRef firstName ||| writeRef lastName) (Right "Ford!")
-  -- write to null
+  -- write to null entity
   foo null "abc"
 
   -- read primitive entity
@@ -53,6 +54,9 @@ main = do
   runReadStream ((+ 10) <$> readStream pressure) print
   -- compose reading streams
   runReadStream (readStream pressure ||| readStream temperature) print
+  -- read empty stream
+  runReadStream empty putStrLn
+
 
   -- write primitive stream
   getLine; runWriteStream (writeStream pressure) 1001
@@ -64,6 +68,8 @@ main = do
   getLine; runWriteStream ((+ 2) >$< writeStream pressure) 999
   -- compose writing streams
   getLine; runWriteStream (writeStream pressure ||| writeStream temperature) (Right 19)
+  -- write to null streams
+  getLine; runWriteStream null 17
 
   -- wait for propagation
   threadDelay 1000000
