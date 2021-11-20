@@ -10,27 +10,42 @@ import Prelude hiding (read, null, readIO)
 
 main :: IO ()
 main = do
+  -- refs
   firstName <- ref "first name" "John"
   middleName <- ref "middle name" "Ferguson"
   lastName <- ref "last name" "Doe"
   let fullName = firstName |&| middleName |&| lastName
+
+  -- writes
+
+  -- write primitive ref
+  let writeFirstName = writeRef firstName
+  let writeLastName = writeRef lastName
+  -- write complex ref
+  let writeFullName = writeRef fullName
+  -- contramap writing ref
+  let writeReversedFirstName = reverse >$< writeFirstName
+  -- writing to multiple refs
+  let writeFirstAndLastName = writeFirstName |&| writeLastName
+  -- write to no ref
+  let writeNull = null
+  -- write to chosen ref
+  let writeFirstOrLastName = writeFirstName ||| writeLastName
+  -- write to write that cannot be written
+  let writeUnwritable = never
+
   pressure <- topic "pressure"
   temperature <- topic "temperature"
   wind <- topic "wind"
   let wheatherInfo = pressure ||| temperature ||| wind
 
-  -- write primitive ref
-  write (writeRef firstName) "Sam"
-  -- write complex ref
-  write (writeRef fullName) ("Paul", ("Adam", "Smith"))
-  -- contramap writing ref
-  write (reverse >$< writeRef lastName) "namweN"
-  -- compose writing all refs
-  write (writeRef firstName |&| writeRef lastName) ("Henry", "Ford")
-  -- compose writing some ref
-  write (writeRef firstName ||| writeRef lastName) (Right "Ford!")
-  -- write to null entity
-  write null "abc"
+  write writeFirstName "Sam"
+  write writeFullName ("Paul", ("Adam", "Smith"))
+  write writeReversedFirstName "namweN"
+  write writeFirstAndLastName ("Henry", "Ford")
+  write writeNull "abc"
+  write writeFirstOrLastName (Right "Ford!")
+  write writeUnwritable undefined
 
   -- read primitive ref
   read (readRef lastName) >>= print

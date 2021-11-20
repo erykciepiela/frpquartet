@@ -41,6 +41,18 @@ class P2P f where
   (|&|) :: f a -> f b -> f (a, b)
   infixr 1 |&|
 
+-- notice: (this function is not exported, it's just for documentation)
+_nothingRef :: Ref ()
+_nothingRef = nothing
+
+-- notice: (this function is not exported, it's just for documentation)
+_nothingReadEntity :: ReadEntity ()
+_nothingReadEntity = nothing
+
+-- notice: (this function is not exported, it's just for documentation)
+_nothingWrite :: Write ()
+_nothingWrite = nothing
+
 constant :: (Functor f, P2P f) => a -> f a
 constant a = a <$ nothing
 
@@ -68,6 +80,18 @@ class P2S f where
   never :: f Void
   (|||) :: f a -> f b -> f (Either a b)
   infixr 1 |||
+
+-- notice: (this function is not exported, it's just for documentation)
+_neverTopic :: Topic Void
+_neverTopic = never
+
+-- notice: (this function is not exported, it's just for documentation)
+_neverReadStream :: ReadStream Void
+_neverReadStream = never
+
+-- notice: (this function is not exported, it's just for documentation)
+_neverWrite :: Write Void
+_neverWrite = never
 
 empty :: (Functor f, P2S f) => f a
 empty = absurd <$> never
