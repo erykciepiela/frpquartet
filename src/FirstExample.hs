@@ -14,9 +14,9 @@ main = do
   middleName <- ref "middle name" "Ferguson"
   lastName <- ref "last name" "Doe"
   let fullName = firstName |&| middleName |&| lastName
-  pressure <- stream "pressure"
-  temperature <- stream "temperature"
-  wind <- stream "wind"
+  pressure <- topic "pressure"
+  temperature <- topic "temperature"
+  wind <- topic "wind"
   let wheatherInfo = pressure ||| temperature ||| wind
 
   -- write primitive ref
@@ -45,41 +45,41 @@ main = do
   -- read constant
   bar (constant 5) >>= print
 
-  -- read primitive stream
-  baz (readStream pressure) print
-  baz (readStream temperature) print
-  -- read complex stream
-  baz (readStream wheatherInfo) print
-  -- fmap reading stream
-  baz ((+ 10) <$> readStream pressure) print
+  -- read primitive topic
+  subscribe (readTopic pressure) print
+  subscribe (readTopic temperature) print
+  -- read complex topic
+  subscribe (readTopic wheatherInfo) print
+  -- fmap reading topic
+  subscribe ((+ 10) <$> readTopic pressure) print
   -- compose reading streams
-  baz (readStream pressure ||| readStream temperature) print
-  -- read empty stream
-  baz empty putStrLn
+  subscribe (readTopic pressure ||| readTopic temperature) print
+  -- read empty topic
+  subscribe empty putStrLn
 
 
-  -- write primitive stream
-  getLine; foo (writeStream pressure) 1001
-  getLine; foo (writeStream temperature) 23.5
-  getLine; foo (writeStream wind) 2.3
-  -- write complex stream
-  getLine; foo (writeStream wheatherInfo) (Right (Left 23.8))
-  -- contramap writing stream
-  getLine; foo ((+ 2) >$< writeStream pressure) 999
-  -- compose writing some stream
-  getLine; foo (writeStream pressure ||| writeStream temperature) (Right 19)
+  -- write primitive topic
+  getLine; foo (writeTopic pressure) 1001
+  getLine; foo (writeTopic temperature) 23.5
+  getLine; foo (writeTopic wind) 2.3
+  -- write complex topic
+  getLine; foo (writeTopic wheatherInfo) (Right (Left 23.8))
+  -- contramap writing topic
+  getLine; foo ((+ 2) >$< writeTopic pressure) 999
+  -- compose writing some topic
+  getLine; foo (writeTopic pressure ||| writeTopic temperature) (Right 19)
   -- compose writing all streams
-  getLine; foo (writeStream pressure |&| writeStream temperature) (1021, 21)
-  -- write to null stream
+  getLine; foo (writeTopic pressure |&| writeTopic temperature) (1021, 21)
+  -- write to null topic
   getLine; foo null 17
-  -- filter stream
-  getLine; foo (null ||| writeStream temperature) (Right 19)
-  -- filter stream
-  getLine; foo (writeStream temperature ||| writeRef lastName) (Left 19)
-  -- write to stream or to ref
-  getLine; foo (writeStream temperature ||| writeRef firstName) (Left 19)
-  -- write to stream and to ref
-  getLine; foo (writeStream temperature |&| writeRef firstName) (19, "Ian")
+  -- filter topic
+  getLine; foo (null ||| writeTopic temperature) (Right 19)
+  -- filter topic
+  getLine; foo (writeTopic temperature ||| writeRef lastName) (Left 19)
+  -- write to topic or to ref
+  getLine; foo (writeTopic temperature ||| writeRef firstName) (Left 19)
+  -- write to topic and to ref
+  getLine; foo (writeTopic temperature |&| writeRef firstName) (19, "Ian")
 
   -- wait for propagation
   threadDelay 1000000

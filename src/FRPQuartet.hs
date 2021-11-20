@@ -9,12 +9,12 @@ module FRPQuartet
   , ref
   , ReadEntity (..)
   , Write (..)
-  , Stream (..)
-  , stream
+  , Topic (..)
+  , topic
   , ReadStream (..)
   , foo
   , bar
-  , baz
+  , subscribe
   , FRPQuartet.readIO
   ) where
 
@@ -128,23 +128,23 @@ instance P2P ReadEntity where
 instance Functor ReadEntity where
   fmap f oe = ReadEntity $ f <$> runReadEntity oe
 
--- | Stream instatiates P2S
--- i.e. ||| :: Stream a -> Stream b -> Stream (Either a b)
--- Stream does not instantiate Functor nor Contravariant
--- Stream could instantiate Invariant (left to prove)
-data Stream a = Stream
-  { writeStream :: Static (WriterT [String] Identity) Write a
-  , readStream  :: Static (WriterT [String] Identity) ReadStream a
+-- | Topic instatiates P2S
+-- i.e. ||| :: Topic a -> Topic b -> Topic (Either a b)
+-- Topic does not instantiate Functor nor Contravariant
+-- Topic could instantiate Invariant (left to prove)
+data Topic a = Topic
+  { writeTopic :: Static (WriterT [String] Identity) Write a
+  , readTopic  :: Static (WriterT [String] Identity) ReadStream a
   }
 
-instance P2S Stream where
-  never = Stream
-    { writeStream = never
-    , readStream = never
+instance P2S Topic where
+  never = Topic
+    { writeTopic = never
+    , readTopic = never
     }
-  ea ||| eb = Stream
-    { writeStream = writeStream ea ||| writeStream eb
-    , readStream = readStream ea ||| readStream eb
+  ea ||| eb = Topic
+    { writeTopic = writeTopic ea ||| writeTopic eb
+    , readTopic = readTopic ea ||| readTopic eb
     }
 
 -- | ReadStream instantiates P2S and additionally Functor
@@ -190,14 +190,14 @@ type ReadIO a = IO a
 readIO :: String -> ReadIO a -> Static (WriterT [String] Identity) ReadEntity a
 readIO name ioa = Static $ WriterT $ Identity (ReadEntity ioa, [name])
 
-stream :: String -> IO (Stream a)
-stream name = do
+topic :: String -> IO (Topic a)
+topic name = do
   mvarsRef <- newIORef []
-  return $ Stream
-    { writeStream = Static $ WriterT $ Identity (Write $ \a -> do
+  return $ Topic
+    { writeTopic = Static $ WriterT $ Identity (Write $ \a -> do
         mvars <- readIORef mvarsRef
         for_ mvars $ \mvar -> putMVar mvar a, [name])
-    , readStream = Static $ WriterT $ Identity (ReadStream $ \action -> do
+    , readTopic = Static $ WriterT $ Identity (ReadStream $ \action -> do
         mvar <- newEmptyMVar
         modifyIORef mvarsRef (mvar:)
         void $ forkIO $ forever $ takeMVar mvar >>= action, [name])
@@ -215,8 +215,8 @@ bar siea = let (doReadEntity, meta) = (runIdentity . runWriterT . runStatic) sie
               print meta
               runReadEntity doReadEntity
 
-baz :: Static (WriterT [String] Identity) ReadStream a -> (a -> IO ()) -> IO ()
-baz siea callback = let (doReadStream, meta) = (runIdentity . runWriterT . runStatic) siea
+subscribe :: Static (WriterT [String] Identity) ReadStream a -> (a -> IO ()) -> IO ()
+subscribe siea callback = let (doReadStream, meta) = (runIdentity . runWriterT . runStatic) siea
             in do
               print meta
               runReadStream doReadStream callback
