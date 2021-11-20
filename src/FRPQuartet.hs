@@ -104,8 +104,8 @@ instance (P2S p, Applicative f) => P2S (Static f p) where
 -- Ref does not instantiate Functor nor Contravariant
 -- Ref could instantiate Invariant (left to prove)
 data Ref a = Ref
-  { writeRef :: Static (WriterT [String] Identity) Write a  -- contravariant, product to product
-  , readRef  :: Static (WriterT [String] Identity) ReadEntity a   -- covariant, product to product
+  { writeRef :: Static (WriterT [String] Identity) Write a
+  , readRef  :: Static (WriterT [String] Identity) ReadEntity a
   }
 
 instance P2P Ref where
