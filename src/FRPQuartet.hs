@@ -8,6 +8,7 @@ import Control.Monad (forever, void)
 import Data.Traversable (for)
 import Data.Foldable (for_)
 import Data.Functor.Identity (Identity (Identity, runIdentity))
+import Control.Monad.Writer (WriterT (runWriterT, WriterT))
 
 -- | Notice no @Functor f@ nor @Contravariant f@ constraint
 -- laws:
@@ -19,27 +20,44 @@ class ProductToProduct f where
   (|&|) :: f a -> f b -> f (a, b)
   infixr 1 |&|
 
-newtype StaticP2P f p a = StaticP2P { runStaticP2P :: f (p a) }
+newtype Static f p a = Static { runStatic :: f (p a) }
 
-instance (ProductToProduct p, Applicative f) => ProductToProduct (StaticP2P f p) where
-  p2pUnit = StaticP2P $ pure p2pUnit
-  sa |&| sb = StaticP2P $ (|&|) <$> runStaticP2P sa <*> runStaticP2P sb
+instance (Contravariant p, Applicative f) => Contravariant (Static f p) where
+  contramap f s = Static $ contramap f <$> runStatic s
+
+instance (Functor p, Applicative f) => Functor (Static f p) where
+  fmap f s = Static $ fmap f <$> runStatic s
+
+instance (ProductToProduct p, Applicative f) => ProductToProduct (Static f p) where
+  p2pUnit = Static $ pure p2pUnit
+  sa |&| sb = Static $ (|&|) <$> runStatic sa <*> runStatic sb
+instance (ProductToSum p, Applicative f) => ProductToSum (Static f p) where
+  p2sUnit = Static $ pure p2sUnit
+  sa ||| sb = Static $ (|||) <$> runStatic sa <*> runStatic sb
 
 -- | Entity instantiates ProductToProduct
 -- i.e. p2pCompose :: (Entity a, Entity b) -> Entity (a, b)
 -- Entity does not instantiate Functor nor Contravariant
 -- Entity could instantiate Invariant (left to prove)
 data Entity a = Entity
-  { writeEntity :: StaticP2P Identity WriteEntity a  -- contravariant, product to product
-  , readEntity  :: StaticP2P Identity ReadEntity a   -- covariant, product to product
+  { writeEntity :: Static (WriterT [String] Identity) WriteEntity a  -- contravariant, product to product
+  , readEntity  :: Static (WriterT [String] Identity) ReadEntity a   -- covariant, product to product
   }
 
--- foo :: Entity a -> WriteEntity a
-foo :: StaticP2P Identity Entity a -> WriteEntity a
-foo = runIdentity . runStaticP2P . writeEntity . runIdentity . runStaticP2P
+-- foo :: Static Identity Entity a -> WriteEntity a
+-- foo = fst . runIdentity . runWriterT . runStatic . writeEntity . runIdentity . runStatic
 
-bar :: StaticP2P Identity Entity a -> ReadEntity a
-bar = runIdentity . runStaticP2P . readEntity . runIdentity . runStaticP2P
+foo :: Static (WriterT [String] Identity) WriteEntity a -> a -> IO ()
+foo siea a = let (doWriteEntity, meta) = (runIdentity . runWriterT . runStatic) siea
+                in do
+                  print meta
+                  runWriteEntity doWriteEntity a
+
+bar :: Static (WriterT [String] Identity) ReadEntity a -> IO a
+bar siea = let (doReadEntity, meta) = (runIdentity . runWriterT . runStatic) siea
+            in do
+              print meta
+              runReadEntity doReadEntity
 
 instance ProductToProduct Entity where
   p2pUnit = Entity
@@ -145,13 +163,19 @@ captureEntityChange = undefined
 
 --
 
-entity :: a -> IO (StaticP2P Identity Entity a)
-entity a = do
+entity :: String -> a -> IO (Entity a)
+entity name a = do
   ref <- newIORef a
-  return $ StaticP2P $ Identity $ Entity
-    { writeEntity = StaticP2P $ Identity $ WriteEntity $ writeIORef ref
-    , readEntity = StaticP2P $ Identity $ ReadEntity $ readIORef ref
+  return $ Entity
+    { writeEntity = Static $ WriterT $ Identity (WriteEntity $ writeIORef ref, [name])
+    , readEntity = Static $ WriterT $ Identity (ReadEntity $ readIORef ref, [name])
     }
+
+constant :: String -> a -> Static (WriterT [String] Identity) ReadEntity a
+constant name a = Static $ WriterT $ Identity (ReadEntity $ return a, [name])
+
+readIO :: String -> IO a -> Static (WriterT [String] Identity) ReadEntity a
+readIO name ioa = Static $ WriterT $ Identity (ReadEntity ioa, [name])
 
 stream :: IO (Stream a)
 stream = do
