@@ -12,8 +12,8 @@ module FRPQuartet
   , Topic (..)
   , topic
   , ReadStream (..)
-  , foo
-  , bar
+  , write
+  , FRPQuartet.read
   , subscribe
   , FRPQuartet.readIO
   ) where
@@ -203,14 +203,14 @@ topic name = do
         void $ forkIO $ forever $ takeMVar mvar >>= action, [name])
     }
 
-foo :: Static (WriterT [String] Identity) Write a -> a -> IO ()
-foo siea a = let (doWriteEntity, meta) = (runIdentity . runWriterT . runStatic) siea
+write :: Static (WriterT [String] Identity) Write a -> a -> IO ()
+write siea a = let (doWriteEntity, meta) = (runIdentity . runWriterT . runStatic) siea
                 in do
                   print meta
                   runWrite doWriteEntity a
 
-bar :: Static (WriterT [String] Identity) ReadEntity a -> IO a
-bar siea = let (doReadEntity, meta) = (runIdentity . runWriterT . runStatic) siea
+read :: Static (WriterT [String] Identity) ReadEntity a -> IO a
+read siea = let (doReadEntity, meta) = (runIdentity . runWriterT . runStatic) siea
             in do
               print meta
               runReadEntity doReadEntity
