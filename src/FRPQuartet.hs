@@ -18,16 +18,18 @@ module FRPQuartet
   , FRPQuartet.readIO
   ) where
 
-import           Data.Functor.Contravariant (Contravariant(..), (>$<))
+import           Control.Concurrent         (forkIO, newEmptyMVar, putMVar,
+                                             takeMVar)
+import           Control.Monad              (forever, void)
+import           Control.Monad.Writer       (WriterT (WriterT, runWriterT))
+import           Data.Foldable              (for_)
+import           Data.Functor.Contravariant (Contravariant (..), (>$<))
+import           Data.Functor.Identity      (Identity (Identity, runIdentity))
+import           Data.IORef                 (modifyIORef, newIORef, readIORef,
+                                             writeIORef)
+import           Data.Traversable           (for)
 import           Data.Void                  (Void, absurd)
-import Data.IORef (newIORef, writeIORef, readIORef, modifyIORef)
-import Control.Concurrent (putMVar, newEmptyMVar, takeMVar, forkIO)
-import Control.Monad (forever, void)
-import Data.Traversable (for)
-import Data.Foldable (for_)
-import Data.Functor.Identity (Identity (Identity, runIdentity))
-import Control.Monad.Writer (WriterT (runWriterT, WriterT))
-import Prelude hiding (null)
+import           Prelude                    hiding (null)
 
 -- | Notice no @Functor f@ nor @Contravariant f@ constraint
 -- laws:
@@ -149,7 +151,7 @@ instance Contravariant WriteEntity where
 -- Stream could instantiate Invariant (left to prove)
 data Stream a = Stream
   { writeStream :: WriteStream a
-  , readStream :: ReadStream a
+  , readStream  :: ReadStream a
   }
 
 instance P2S Stream where
