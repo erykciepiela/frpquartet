@@ -8,6 +8,8 @@ import Control.Concurrent
 import Control.Monad.Identity (Identity(runIdentity))
 import Data.Time (getCurrentTime)
 import Prelude hiding (read, null, readIO)
+import Data.Functor.Invariant (Invariant(invmap))
+import Data.Tuple (swap)
 
 main :: IO ()
 main = do
@@ -15,6 +17,8 @@ main = do
   firstName <- ref "first name" "John"
   middleName <- ref "middle name" "Ferguson"
   lastName <- ref "last name" "Doe"
+  tuple <- ref "tuple" (1, "2")
+  let tupleSwapped = invmap swap swap tuple
   let fullName = firstName |&| middleName |&| lastName
 
   -- writes
@@ -38,6 +42,8 @@ main = do
   pressure <- topic "pressure"
   temperature <- topic "temperature"
   wind <- topic "wind"
+  foo <- topic @(Int, Bool) "whatever"
+  let fooSwapped = invmap swap swap foo
   let wheatherInfo = pressure ||| temperature ||| wind
 
   write writeFirstName "Sam"
