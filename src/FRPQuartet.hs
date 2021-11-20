@@ -1,4 +1,22 @@
-module FRPQuartet where
+module FRPQuartet
+  ( P2P (nothing, (|&|))
+  , constant
+  , null
+  , P2S (never, (|||))
+  , empty
+  , Static (..)
+  , Ref (..)
+  , ref
+  , ReadEntity (..)
+  , WriteEntity (..)
+  , Stream (..)
+  , stream
+  , ReadStream (..)
+  , WriteStream (..)
+  , foo
+  , bar
+  , FRPQuartet.readIO
+  ) where
 
 import           Data.Functor.Contravariant (Contravariant(..), (>$<))
 import           Data.Void                  (Void, absurd)
@@ -24,20 +42,20 @@ class P2P f where
 constant :: (Functor f, P2P f) => a -> f a
 constant a = a <$ nothing
 
--- notice:
-constantReadEntity :: a -> ReadEntity a
-constantReadEntity = constant
+-- notice: (this function is not exported, it's just for documentation)
+_constantReadEntity :: a -> ReadEntity a
+_constantReadEntity = constant
 
 null :: (Contravariant f, P2P f) => f a
 null = () >$ nothing
 
--- notice:
-nullWriteEntity :: WriteEntity a
-nullWriteEntity = null
+-- notice: (this function is not exported, it's just for documentation)
+_nullWriteEntity :: WriteEntity a
+_nullWriteEntity = null
 
---notice:
-nullWriteStream :: WriteStream a
-nullWriteStream = null
+-- notice: (this function is not exported, it's just for documentation)
+_nullWriteStream :: WriteStream a
+_nullWriteStream = null
 
 -- | Notice no @Functor f@ nor @Contravariant f@ constraint
 -- | laws:
@@ -52,16 +70,15 @@ class P2S f where
 empty :: (Functor f, P2S f) => f a
 empty = absurd <$> never
 
--- notice:
-emptyReadStream :: ReadStream a
-emptyReadStream = empty
+-- notice: (this function is not exported, it's just for documentation)
+_emptyReadStream :: ReadStream a
+_emptyReadStream = empty
 
--- notice:
--- this is "abstract nonsense": I can create ad-hoc arbitrary write-stream if you give me Void
--- this means: we can't have ad-hoc `WriteStream a`
--- it proves WriteStream must instantiate P2P, then we can just use @null@
-nullStream :: (Contravariant f, P2S f) => (a -> Void) -> f a
-nullStream f = f >$< never
+-- notice: (this function is not exported, it's just for documentation)
+-- you cannot create ad-hoc arbitrary contravariant P2S
+-- if you need to create ad-hoc arbitrary contravariant you have to use P2P and @null@
+_nullP2S :: (Contravariant f, P2S f) => (a -> Void) -> f a
+_nullP2S f = f >$< never
 
 newtype Static f p a = Static { runStatic :: f (p a) }
 
@@ -88,18 +105,6 @@ data Ref a = Ref
   { writeRef :: Static (WriterT [String] Identity) WriteEntity a  -- contravariant, product to product
   , readRef  :: Static (WriterT [String] Identity) ReadEntity a   -- covariant, product to product
   }
-
-foo :: Static (WriterT [String] Identity) WriteEntity a -> a -> IO ()
-foo siea a = let (doWriteEntity, meta) = (runIdentity . runWriterT . runStatic) siea
-                in do
-                  print meta
-                  runWriteEntity doWriteEntity a
-
-bar :: Static (WriterT [String] Identity) ReadEntity a -> IO a
-bar siea = let (doReadEntity, meta) = (runIdentity . runWriterT . runStatic) siea
-            in do
-              print meta
-              runReadEntity doReadEntity
 
 instance P2P Ref where
   nothing = Ref
@@ -212,3 +217,15 @@ stream = do
         modifyIORef mvarsRef (mvar:)
         void $ forkIO $ forever $ takeMVar mvar >>= action
     }
+
+foo :: Static (WriterT [String] Identity) WriteEntity a -> a -> IO ()
+foo siea a = let (doWriteEntity, meta) = (runIdentity . runWriterT . runStatic) siea
+                in do
+                  print meta
+                  runWriteEntity doWriteEntity a
+
+bar :: Static (WriterT [String] Identity) ReadEntity a -> IO a
+bar siea = let (doReadEntity, meta) = (runIdentity . runWriterT . runStatic) siea
+            in do
+              print meta
+              runReadEntity doReadEntity
