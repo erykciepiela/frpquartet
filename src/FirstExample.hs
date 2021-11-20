@@ -68,6 +68,8 @@ main = do
   getLine; runWriteStream ((+ 2) >$< writeStream pressure) 999
   -- compose writing streams
   getLine; runWriteStream (writeStream pressure ||| writeStream temperature) (Right 19)
+  -- compose writing streams
+  getLine; runWriteStream (writeStream pressure |&| writeStream temperature) (1021, 21)
   -- write to null streams
   getLine; runWriteStream null 17
 
