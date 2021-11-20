@@ -16,22 +16,22 @@ main = do
   let wheatherInfo = pressure ||| temperature ||| wind
 
   -- write primitive entity
-  runWriteEntity (writeEntity firstName) "Sam"
+  runWriteEntity (foo firstName) "Sam"
   -- write complex entity
-  runWriteEntity (writeEntity fullName) ("Paul", ("Adam", "Smith"))
+  runWriteEntity (foo fullName) ("Paul", ("Adam", "Smith"))
   -- contramap writing entity
-  runWriteEntity (reverse >$< writeEntity lastName) "namweN"
+  runWriteEntity (reverse >$< foo lastName) "namweN"
   -- compose writing entities
-  runWriteEntity (writeEntity firstName |&| writeEntity lastName) ("Henry", "Ford")
+  runWriteEntity (foo firstName |&| foo lastName) ("Henry", "Ford")
 
   -- read primitive entity
-  runReadEntity (readEntity lastName) >>= print
+  runReadEntity (bar lastName) >>= print
   -- read complex entity
-  runReadEntity (readEntity fullName) >>= print
+  runReadEntity (bar fullName) >>= print
   -- fmap reading entity
-  runReadEntity (take 3 <$> readEntity lastName) >>= print
+  runReadEntity (take 3 <$> bar lastName) >>= print
   -- compose reading entities
-  runReadEntity (readEntity firstName |&| readEntity lastName) >>= print
+  runReadEntity (bar firstName |&| bar lastName) >>= print
 
   -- read primitive stream
   runReadStream (readStream pressure) print

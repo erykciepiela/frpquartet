@@ -7,6 +7,7 @@ import Control.Concurrent (putMVar, newEmptyMVar, takeMVar, forkIO)
 import Control.Monad (forever, void)
 import Data.Traversable (for)
 import Data.Foldable (for_)
+import Data.Functor.Identity (Identity (Identity, runIdentity))
 
 -- | Notice no @Functor f@ nor @Contravariant f@ constraint
 -- laws:
@@ -18,14 +19,27 @@ class ProductToProduct f where
   (|&|) :: f a -> f b -> f (a, b)
   infixr 1 |&|
 
+newtype StaticP2P f p a = StaticP2P { runStaticP2P :: f (p a) }
+
+instance (ProductToProduct p, Applicative f) => ProductToProduct (StaticP2P f p) where
+  p2pUnit = StaticP2P $ pure p2pUnit
+  sa |&| sb = StaticP2P $ (|&|) <$> runStaticP2P sa <*> runStaticP2P sb
+
 -- | Entity instantiates ProductToProduct
 -- i.e. p2pCompose :: (Entity a, Entity b) -> Entity (a, b)
 -- Entity does not instantiate Functor nor Contravariant
 -- Entity could instantiate Invariant (left to prove)
 data Entity a = Entity
-  { writeEntity :: WriteEntity a  -- contravariant, product to product
-  , readEntity  :: ReadEntity a   -- covariant, product to product
+  { writeEntity :: StaticP2P Identity WriteEntity a  -- contravariant, product to product
+  , readEntity  :: StaticP2P Identity ReadEntity a   -- covariant, product to product
   }
+
+-- foo :: Entity a -> WriteEntity a
+foo :: StaticP2P Identity Entity a -> WriteEntity a
+foo = runIdentity . runStaticP2P . writeEntity . runIdentity . runStaticP2P
+
+bar :: StaticP2P Identity Entity a -> ReadEntity a
+bar = runIdentity . runStaticP2P . readEntity . runIdentity . runStaticP2P
 
 instance ProductToProduct Entity where
   p2pUnit = Entity
@@ -131,12 +145,12 @@ captureEntityChange = undefined
 
 --
 
-entity :: a -> IO (Entity a)
+entity :: a -> IO (StaticP2P Identity Entity a)
 entity a = do
   ref <- newIORef a
-  return $ Entity
-    { writeEntity = WriteEntity $ writeIORef ref
-    , readEntity = ReadEntity $ readIORef ref
+  return $ StaticP2P $ Identity $ Entity
+    { writeEntity = StaticP2P $ Identity $ WriteEntity $ writeIORef ref
+    , readEntity = StaticP2P $ Identity $ ReadEntity $ readIORef ref
     }
 
 stream :: IO (Stream a)
