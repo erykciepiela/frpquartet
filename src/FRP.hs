@@ -5,7 +5,7 @@ module FRP
   , Write (..)
   , Topic (..)
   , topic
-  , ReadStream (..)
+  , SubscribeStream (..)
   , write
   , FRP.read
   , subscribe
@@ -55,23 +55,23 @@ instance Invariant Ref where
 -- Topic does not instantiate Functor nor Contravariant, it's Invariant
 data Topic a = Topic
   { writeTopic :: FRP Write a
-  , readTopic  :: FRP ReadStream a
+  , subscribeTopic  :: FRP SubscribeStream a
   }
 
 instance P2S Topic where
   never = Topic
     { writeTopic = never
-    , readTopic = never
+    , subscribeTopic = never
     }
   ea ||| eb = Topic
     { writeTopic = writeTopic ea ||| writeTopic eb
-    , readTopic = readTopic ea ||| readTopic eb
+    , subscribeTopic = subscribeTopic ea ||| subscribeTopic eb
     }
 
 instance Invariant Topic where
   invmap f g topic = Topic
     { writeTopic = g >$< writeTopic topic
-    , readTopic = f <$> readTopic topic
+    , subscribeTopic = f <$> subscribeTopic topic
     }
 
 -- | Write instantiates P2S, P2P and Contravariant
@@ -101,17 +101,17 @@ instance Functor ReadEntity where
   fmap f oe = ReadEntity $ f <$> runReadEntity oe
 
 
--- | ReadStream instantiates P2S and Functor
-newtype ReadStream a = ReadStream { runReadStream :: (a -> IO ()) -> IO () }
+-- | SubscribeStream instantiates P2S and Functor
+newtype SubscribeStream a = SubscribeStream { runReadStream :: (a -> IO ()) -> IO () }
 
-instance P2S ReadStream where
-  never = ReadStream $ \_ -> return ()
-  osa ||| osb = ReadStream $ \aorb2io -> do
+instance P2S SubscribeStream where
+  never = SubscribeStream $ \_ -> return ()
+  osa ||| osb = SubscribeStream $ \aorb2io -> do
     runReadStream osa $ aorb2io . Left
     runReadStream osb $ aorb2io . Right
 
-instance Functor ReadStream where
-  fmap f os = ReadStream $ \b2io -> runReadStream os (b2io . f)
+instance Functor SubscribeStream where
+  fmap f os = SubscribeStream $ \b2io -> runReadStream os (b2io . f)
 
 --
 
@@ -125,7 +125,7 @@ ref name a = do
 
 type ReadIO a = IO a
 
-readIO :: String -> ReadIO a -> Static (WriterT [String] Identity) ReadEntity a
+readIO :: String -> ReadIO a -> FRP ReadEntity a
 readIO name ioa = Static $ WriterT $ Identity (ReadEntity ioa, [name])
 
 topic :: String -> IO (Topic a)
@@ -135,25 +135,25 @@ topic name = do
     { writeTopic = Static $ WriterT $ Identity (Write $ \a -> do
         mvars <- readIORef mvarsRef
         for_ mvars $ \mvar -> putMVar mvar a, [name])
-    , readTopic = Static $ WriterT $ Identity (ReadStream $ \action -> do
+    , subscribeTopic = Static $ WriterT $ Identity (SubscribeStream $ \action -> do
         mvar <- newEmptyMVar
         modifyIORef mvarsRef (mvar:)
         void $ forkIO $ forever $ takeMVar mvar >>= action, [name])
     }
 
-write :: Static (WriterT [String] Identity) Write a -> a -> IO ()
+write :: FRP Write a -> a -> IO ()
 write siea a = let (doWriteEntity, meta) = (runIdentity . runWriterT . runStatic) siea
                 in do
                   print meta
                   runWrite doWriteEntity a
 
-read :: Static (WriterT [String] Identity) ReadEntity a -> IO a
+read :: FRP ReadEntity a -> IO a
 read siea = let (doReadEntity, meta) = (runIdentity . runWriterT . runStatic) siea
             in do
               print meta
               runReadEntity doReadEntity
 
-subscribe :: Static (WriterT [String] Identity) ReadStream a -> (a -> IO ()) -> IO ()
+subscribe :: FRP SubscribeStream a -> (a -> IO ()) -> IO ()
 subscribe siea callback = let (doReadStream, meta) = (runIdentity . runWriterT . runStatic) siea
             in do
               print meta
@@ -182,13 +182,13 @@ _nullWriteStream = null
 _neverTopic :: Topic Void
 _neverTopic = never
 
-_neverReadStream :: ReadStream Void
+_neverReadStream :: SubscribeStream Void
 _neverReadStream = never
 
 _neverWrite :: Write Void
 _neverWrite = never
 
-_emptyReadStream :: ReadStream a
+_emptyReadStream :: SubscribeStream a
 _emptyReadStream = empty
 
 -- you cannot create ad-hoc arbitrary contravariant P2S

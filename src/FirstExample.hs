@@ -68,14 +68,14 @@ main = do
   read (constant 5) >>= print
 
   -- read primitive topic
-  subscribe (readTopic pressure) print
-  subscribe (readTopic temperature) print
+  subscribe (subscribeTopic pressure) print
+  subscribe (subscribeTopic temperature) print
   -- read complex topic
-  subscribe (readTopic wheatherInfo) print
+  subscribe (subscribeTopic wheatherInfo) print
   -- fmap reading topic
-  subscribe ((+ 10) <$> readTopic pressure) print
+  subscribe ((+ 10) <$> subscribeTopic pressure) print
   -- compose reading streams
-  subscribe (readTopic pressure ||| readTopic temperature) print
+  subscribe (subscribeTopic pressure ||| subscribeTopic temperature) print
   -- read empty topic
   subscribe empty putStrLn
 
