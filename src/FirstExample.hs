@@ -9,36 +9,36 @@ import Prelude hiding (readIO)
 
 main :: IO ()
 main = do
-  firstName <- entity "first name" "John"
-  middleName <- entity "middle name" "Ferguson"
-  lastName <- entity "last name" "Doe"
+  firstName <- ref "first name" "John"
+  middleName <- ref "middle name" "Ferguson"
+  lastName <- ref "last name" "Doe"
   let fullName = firstName |&| middleName |&| lastName
   pressure <- stream
   temperature <- stream
   wind <- stream
   let wheatherInfo = pressure ||| temperature ||| wind
 
-  -- write primitive entity
-  foo (writeEntity firstName) "Sam"
-  -- write complex entity
-  foo (writeEntity fullName) ("Paul", ("Adam", "Smith"))
-  -- contramap writing entity
-  foo (reverse >$< writeEntity lastName) "namweN"
+  -- write primitive ref
+  foo (writeRef firstName) "Sam"
+  -- write complex ref
+  foo (writeRef fullName) ("Paul", ("Adam", "Smith"))
+  -- contramap writing ref
+  foo (reverse >$< writeRef lastName) "namweN"
   -- compose writing entities
-  foo (writeEntity firstName |&| writeEntity lastName) ("Henry", "Ford")
+  foo (writeRef firstName |&| writeRef lastName) ("Henry", "Ford")
   -- compose writing entities
-  foo (writeEntity firstName ||| writeEntity lastName) (Right "Ford!")
+  foo (writeRef firstName ||| writeRef lastName) (Right "Ford!")
 
   -- read primitive entity
-  bar (readEntity lastName) >>= print
+  bar (readRef lastName) >>= print
   -- read complex entity
-  bar (readEntity fullName) >>= print
+  bar (readRef fullName) >>= print
   -- fmap reading entity
-  bar (take 3 <$> readEntity lastName) >>= print
+  bar (take 3 <$> readRef lastName) >>= print
   -- compose reading entities
-  bar (readEntity firstName |&| readEntity lastName) >>= print
+  bar (readRef firstName |&| readRef lastName) >>= print
   -- read from IO and constants
-  bar (readIO "current time" getCurrentTime |&| constant "five" 5) >>= print
+  bar (readIO "current time" getCurrentTime |&| constant 5) >>= print
 
   -- read primitive stream
   runReadStream (readStream pressure) print
