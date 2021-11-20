@@ -7,6 +7,8 @@ import Control.Concurrent (putMVar, newEmptyMVar, takeMVar, forkIO)
 import Control.Monad (forever, void)
 import Data.Traversable (for)
 import Data.Foldable (for_)
+import Data.Functor.Identity (Identity (Identity, runIdentity))
+import Control.Monad.Writer (WriterT (runWriterT, WriterT))
 
 -- | Notice no @Functor f@ nor @Contravariant f@ constraint
 -- laws:
@@ -18,14 +20,44 @@ class ProductToProduct f where
   (|&|) :: f a -> f b -> f (a, b)
   infixr 1 |&|
 
+newtype Static f p a = Static { runStatic :: f (p a) }
+
+instance (Contravariant p, Applicative f) => Contravariant (Static f p) where
+  contramap f s = Static $ contramap f <$> runStatic s
+
+instance (Functor p, Applicative f) => Functor (Static f p) where
+  fmap f s = Static $ fmap f <$> runStatic s
+
+instance (ProductToProduct p, Applicative f) => ProductToProduct (Static f p) where
+  p2pUnit = Static $ pure p2pUnit
+  sa |&| sb = Static $ (|&|) <$> runStatic sa <*> runStatic sb
+instance (ProductToSum p, Applicative f) => ProductToSum (Static f p) where
+  p2sUnit = Static $ pure p2sUnit
+  sa ||| sb = Static $ (|||) <$> runStatic sa <*> runStatic sb
+
 -- | Entity instantiates ProductToProduct
 -- i.e. p2pCompose :: (Entity a, Entity b) -> Entity (a, b)
 -- Entity does not instantiate Functor nor Contravariant
 -- Entity could instantiate Invariant (left to prove)
 data Entity a = Entity
-  { writeEntity :: WriteEntity a  -- contravariant, product to product
-  , readEntity  :: ReadEntity a   -- covariant, product to product
+  { writeEntity :: Static (WriterT [String] Identity) WriteEntity a  -- contravariant, product to product
+  , readEntity  :: Static (WriterT [String] Identity) ReadEntity a   -- covariant, product to product
   }
+
+-- foo :: Static Identity Entity a -> WriteEntity a
+-- foo = fst . runIdentity . runWriterT . runStatic . writeEntity . runIdentity . runStatic
+
+foo :: Static (WriterT [String] Identity) WriteEntity a -> a -> IO ()
+foo siea a = let (doWriteEntity, meta) = (runIdentity . runWriterT . runStatic) siea
+                in do
+                  print meta
+                  runWriteEntity doWriteEntity a
+
+bar :: Static (WriterT [String] Identity) ReadEntity a -> IO a
+bar siea = let (doReadEntity, meta) = (runIdentity . runWriterT . runStatic) siea
+            in do
+              print meta
+              runReadEntity doReadEntity
 
 instance ProductToProduct Entity where
   p2pUnit = Entity
@@ -50,11 +82,16 @@ instance Functor ReadEntity where
 -- | ReadEntity instantiates ProductToProduct and additionally Contravariant
 newtype WriteEntity a = WriteEntity { runWriteEntity :: a -> IO () }
 
+instance ProductToSum WriteEntity where
+  p2sUnit = WriteEntity $ \_ -> return ()
+  ea ||| eb = WriteEntity $ \aorb -> either (runWriteEntity ea) (runWriteEntity eb) aorb
+
 instance ProductToProduct WriteEntity where
   p2pUnit = WriteEntity $ \_ -> return ()
   iea |&| ieb = WriteEntity $ \(a, b) -> do
     runWriteEntity iea a
     runWriteEntity ieb b
+
 
 instance Contravariant WriteEntity where
   contramap f ie = WriteEntity $ runWriteEntity ie . f
@@ -107,7 +144,13 @@ newtype WriteStream a = WriteStream { runWriteStream :: a -> IO () }
 
 instance ProductToSum WriteStream where
   p2sUnit = WriteStream $ \_ -> return ()
-  isa ||| isb = WriteStream $ \aorb -> either (runWriteStream isa) (runWriteStream isb) aorb
+  sa ||| sb = WriteStream $ \aorb -> either (runWriteStream sa) (runWriteStream sb) aorb
+
+instance ProductToProduct WriteStream where
+  p2pUnit = WriteStream $ \_ -> return ()
+  isa |&| isb = WriteStream $ \(a, b) -> do
+    runWriteStream isa a
+    runWriteStream isb b
 
 instance Contravariant WriteStream where
   contramap f is = WriteStream $ runWriteStream is . f
@@ -120,13 +163,19 @@ captureEntityChange = undefined
 
 --
 
-entity :: a -> IO (Entity a)
-entity a = do
+entity :: String -> a -> IO (Entity a)
+entity name a = do
   ref <- newIORef a
   return $ Entity
-    { writeEntity = WriteEntity $ writeIORef ref
-    , readEntity = ReadEntity $ readIORef ref
+    { writeEntity = Static $ WriterT $ Identity (WriteEntity $ writeIORef ref, [name])
+    , readEntity = Static $ WriterT $ Identity (ReadEntity $ readIORef ref, [name])
     }
+
+constant :: String -> a -> Static (WriterT [String] Identity) ReadEntity a
+constant name a = Static $ WriterT $ Identity (ReadEntity $ return a, [name])
+
+readIO :: String -> IO a -> Static (WriterT [String] Identity) ReadEntity a
+readIO name ioa = Static $ WriterT $ Identity (ReadEntity ioa, [name])
 
 stream :: IO (Stream a)
 stream = do

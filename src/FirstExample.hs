@@ -3,12 +3,15 @@ module FirstExample where
 import FRPQuartet
 import Data.Functor.Contravariant
 import Control.Concurrent
+import Control.Monad.Identity (Identity(runIdentity))
+import Data.Time (getCurrentTime)
+import Prelude hiding (readIO)
 
 main :: IO ()
 main = do
-  firstName <- entity "John"
-  middleName <- entity "Ferguson"
-  lastName <- entity "Doe"
+  firstName <- entity "first name" "John"
+  middleName <- entity "middle name" "Ferguson"
+  lastName <- entity "last name" "Doe"
   let fullName = firstName |&| middleName |&| lastName
   pressure <- stream
   temperature <- stream
@@ -16,22 +19,26 @@ main = do
   let wheatherInfo = pressure ||| temperature ||| wind
 
   -- write primitive entity
-  runWriteEntity (writeEntity firstName) "Sam"
+  foo (writeEntity firstName) "Sam"
   -- write complex entity
-  runWriteEntity (writeEntity fullName) ("Paul", ("Adam", "Smith"))
+  foo (writeEntity fullName) ("Paul", ("Adam", "Smith"))
   -- contramap writing entity
-  runWriteEntity (reverse >$< writeEntity lastName) "namweN"
+  foo (reverse >$< writeEntity lastName) "namweN"
   -- compose writing entities
-  runWriteEntity (writeEntity firstName |&| writeEntity lastName) ("Henry", "Ford")
+  foo (writeEntity firstName |&| writeEntity lastName) ("Henry", "Ford")
+  -- compose writing entities
+  foo (writeEntity firstName ||| writeEntity lastName) (Right "Ford!")
 
   -- read primitive entity
-  runReadEntity (readEntity lastName) >>= print
+  bar (readEntity lastName) >>= print
   -- read complex entity
-  runReadEntity (readEntity fullName) >>= print
+  bar (readEntity fullName) >>= print
   -- fmap reading entity
-  runReadEntity (take 3 <$> readEntity lastName) >>= print
+  bar (take 3 <$> readEntity lastName) >>= print
   -- compose reading entities
-  runReadEntity (readEntity firstName |&| readEntity lastName) >>= print
+  bar (readEntity firstName |&| readEntity lastName) >>= print
+  -- read from IO and constants
+  bar (readIO "current time" getCurrentTime |&| constant "five" 5) >>= print
 
   -- read primitive stream
   runReadStream (readStream pressure) print
