@@ -34,6 +34,7 @@ library
       src
   build-depends:
       base >=4.7 && <5
+    , invariant
     , mtl
     , time
   default-language: Haskell2010
@@ -48,6 +49,7 @@ executable frp-quartet-exe
   build-depends:
       base >=4.7 && <5
     , frp-quartet
+    , invariant
     , mtl
     , time
   default-language: Haskell2010
@@ -63,6 +65,7 @@ test-suite frp-quartet-test
   build-depends:
       base >=4.7 && <5
     , frp-quartet
+    , invariant
     , mtl
     , time
   default-language: Haskell2010

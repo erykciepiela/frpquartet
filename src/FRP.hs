@@ -22,11 +22,11 @@ import Data.IORef
 import Data.Foldable (for_)
 import Control.Concurrent.MVar
 import Control.Concurrent
+import Data.Functor.Invariant (Invariant (invmap))
 
 -- | Ref instantiates P2P
 -- i.e. |&| :: Ref a -> Ref b -> Ref (a, b)
--- Ref does not instantiate Functor nor Contravariant
--- Ref could instantiate Invariant (left to prove)
+-- Ref does not instantiate Functor nor Contravariant it's Invariant.
 data Ref a = Ref
   { writeRef :: Static (WriterT [String] Identity) Write a
   , readRef  :: Static (WriterT [String] Identity) ReadEntity a
@@ -42,20 +42,15 @@ instance P2P Ref where
     , readRef = readRef ea |&| readRef eb
     }
 
--- | ReadEntity instantiates P2P and additionally Functor
-newtype ReadEntity a = ReadEntity { runReadEntity :: IO a }
-
-instance P2P ReadEntity where
-  nothing = ReadEntity $ return ()
-  oea |&| oeb = ReadEntity $ (,) <$> runReadEntity oea <*> runReadEntity oeb
-
-instance Functor ReadEntity where
-  fmap f oe = ReadEntity $ f <$> runReadEntity oe
+instance Invariant Ref where
+  invmap f g ref = Ref
+    { writeRef = g >$< writeRef ref
+    , readRef = f <$> readRef ref
+    }
 
 -- | Topic instatiates P2S
 -- i.e. ||| :: Topic a -> Topic b -> Topic (Either a b)
--- Topic does not instantiate Functor nor Contravariant
--- Topic could instantiate Invariant (left to prove)
+-- Topic does not instantiate Functor nor Contravariant, it's Invariant
 data Topic a = Topic
   { writeTopic :: Static (WriterT [String] Identity) Write a
   , readTopic  :: Static (WriterT [String] Identity) ReadStream a
@@ -71,17 +66,11 @@ instance P2S Topic where
     , readTopic = readTopic ea ||| readTopic eb
     }
 
--- | ReadStream instantiates P2S and additionally Functor
-newtype ReadStream a = ReadStream { runReadStream :: (a -> IO ()) -> IO () }
-
-instance P2S ReadStream where
-  never = ReadStream $ \_ -> return ()
-  osa ||| osb = ReadStream $ \aorb2io -> do
-    runReadStream osa $ aorb2io . Left
-    runReadStream osb $ aorb2io . Right
-
-instance Functor ReadStream where
-  fmap f os = ReadStream $ \b2io -> runReadStream os (b2io . f)
+instance Invariant Topic where
+  invmap f g topic = Topic
+    { writeTopic = g >$< writeTopic topic
+    , readTopic = f <$> readTopic topic
+    }
 
 -- | Write instantiates P2S, P2P and Contravariant
 newtype Write a = Write { runWrite :: a -> IO () }
@@ -98,6 +87,29 @@ instance P2P Write where
 
 instance Contravariant Write where
   contramap f is = Write $ runWrite is . f
+
+-- | ReadEntity instantiates P2P and Functor
+newtype ReadEntity a = ReadEntity { runReadEntity :: IO a }
+
+instance P2P ReadEntity where
+  nothing = ReadEntity $ return ()
+  oea |&| oeb = ReadEntity $ (,) <$> runReadEntity oea <*> runReadEntity oeb
+
+instance Functor ReadEntity where
+  fmap f oe = ReadEntity $ f <$> runReadEntity oe
+
+
+-- | ReadStream instantiates P2S and Functor
+newtype ReadStream a = ReadStream { runReadStream :: (a -> IO ()) -> IO () }
+
+instance P2S ReadStream where
+  never = ReadStream $ \_ -> return ()
+  osa ||| osb = ReadStream $ \aorb2io -> do
+    runReadStream osa $ aorb2io . Left
+    runReadStream osb $ aorb2io . Right
+
+instance Functor ReadStream where
+  fmap f os = ReadStream $ \b2io -> runReadStream os (b2io . f)
 
 --
 
