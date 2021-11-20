@@ -128,7 +128,7 @@ instance P2P ReadEntity where
 instance Functor ReadEntity where
   fmap f oe = ReadEntity $ f <$> runReadEntity oe
 
--- | ReadEntity instantiates P2P and additionally Contravariant
+-- | WriteEntity instantiates P2P and additionally P2S and Contravariant
 newtype WriteEntity a = WriteEntity { runWriteEntity :: a -> IO () }
 
 instance P2S WriteEntity where
@@ -176,7 +176,7 @@ instance P2S ReadStream where
 instance Functor ReadStream where
   fmap f os = ReadStream $ \b2io -> runReadStream os (b2io . f)
 
--- | WriteStream instantiates P2S and additionally Contravariant
+-- | WriteStream instantiates P2S and additionally P2P and Contravariant
 newtype WriteStream a = WriteStream { runWriteStream :: a -> IO () }
 
 instance P2S WriteStream where
