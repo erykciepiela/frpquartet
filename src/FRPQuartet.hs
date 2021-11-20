@@ -1,6 +1,6 @@
 module FRPQuartet where
 
-import           Data.Functor.Contravariant (Contravariant(..))
+import           Data.Functor.Contravariant (Contravariant(..), (>$<))
 import           Data.Void                  (Void, absurd)
 import Data.IORef (newIORef, writeIORef, readIORef, modifyIORef)
 import Control.Concurrent (putMVar, newEmptyMVar, takeMVar, forkIO)
@@ -23,6 +23,9 @@ class P2P f where
 constant :: (Functor f, P2P f) => a -> f a
 constant a = a <$ nothing
 
+null :: (Contravariant f, P2P f) => f a
+null = () >$ nothing
+
 -- | Notice no @Functor f@ nor @Contravariant f@ constraint
 -- | laws:
 -- | u ||| never ~= u
@@ -35,6 +38,10 @@ class P2S f where
 
 empty :: (Functor f, P2S f) => f a
 empty = absurd <$> never
+
+-- this is "abstract nonsense"
+full :: (Contravariant f, P2S f) => (a -> Void) -> f a
+full f = f >$< never
 
 newtype Static f p a = Static { runStatic :: f (p a) }
 

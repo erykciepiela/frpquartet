@@ -5,7 +5,7 @@ import Data.Functor.Contravariant
 import Control.Concurrent
 import Control.Monad.Identity (Identity(runIdentity))
 import Data.Time (getCurrentTime)
-import Prelude hiding (readIO)
+import Prelude hiding (null, readIO)
 
 main :: IO ()
 main = do
@@ -28,6 +28,8 @@ main = do
   foo (writeRef firstName |&| writeRef lastName) ("Henry", "Ford")
   -- compose writing entities
   foo (writeRef firstName ||| writeRef lastName) (Right "Ford!")
+  -- write to null
+  foo null "abc"
 
   -- read primitive entity
   bar (readRef lastName) >>= print
@@ -37,8 +39,10 @@ main = do
   bar (take 3 <$> readRef lastName) >>= print
   -- compose reading entities
   bar (readRef firstName |&| readRef lastName) >>= print
-  -- read from IO and constants
-  bar (readIO "current time" getCurrentTime |&| constant 5) >>= print
+  -- read from IO
+  bar (readIO "current time" getCurrentTime) >>= print
+  -- read constants
+  bar (constant 5) >>= print
 
   -- read primitive stream
   runReadStream (readStream pressure) print
