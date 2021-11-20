@@ -25,24 +25,24 @@ main = do
   foo (writeRef fullName) ("Paul", ("Adam", "Smith"))
   -- contramap writing ref
   foo (reverse >$< writeRef lastName) "namweN"
-  -- compose writing entities
+  -- compose writing all refs
   foo (writeRef firstName |&| writeRef lastName) ("Henry", "Ford")
-  -- compose writing entities
+  -- compose writing some ref
   foo (writeRef firstName ||| writeRef lastName) (Right "Ford!")
   -- write to null entity
   foo null "abc"
 
-  -- read primitive entity
+  -- read primitive ref
   bar (readRef lastName) >>= print
-  -- read complex entity
+  -- read complex ref
   bar (readRef fullName) >>= print
-  -- fmap reading entity
+  -- fmap reading ref
   bar (take 3 <$> readRef lastName) >>= print
-  -- compose reading entities
+  -- compose reading all refs
   bar (readRef firstName |&| readRef lastName) >>= print
   -- read from IO
   bar (readIO "current time" getCurrentTime) >>= print
-  -- read constants
+  -- read constant
   bar (constant 5) >>= print
 
   -- read primitive stream
@@ -66,11 +66,11 @@ main = do
   getLine; runWriteStream (writeStream wheatherInfo) (Right (Left 23.8))
   -- contramap writing stream
   getLine; runWriteStream ((+ 2) >$< writeStream pressure) 999
-  -- compose writing streams
+  -- compose writing some stream
   getLine; runWriteStream (writeStream pressure ||| writeStream temperature) (Right 19)
-  -- compose writing streams
+  -- compose writing all streams
   getLine; runWriteStream (writeStream pressure |&| writeStream temperature) (1021, 21)
-  -- write to null streams
+  -- write to null stream
   getLine; runWriteStream null 17
 
   -- wait for propagation
