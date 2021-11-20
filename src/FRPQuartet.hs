@@ -14,6 +14,7 @@ module FRPQuartet
   , ReadStream (..)
   , foo
   , bar
+  , baz
   , FRPQuartet.readIO
   ) where
 
@@ -132,8 +133,8 @@ instance Functor ReadEntity where
 -- Stream does not instantiate Functor nor Contravariant
 -- Stream could instantiate Invariant (left to prove)
 data Stream a = Stream
-  { writeStream :: Write a
-  , readStream  :: ReadStream a
+  { writeStream :: Static (WriterT [String] Identity) Write a
+  , readStream  :: Static (WriterT [String] Identity) ReadStream a
   }
 
 instance P2S Stream where
@@ -189,17 +190,17 @@ type ReadIO a = IO a
 readIO :: String -> ReadIO a -> Static (WriterT [String] Identity) ReadEntity a
 readIO name ioa = Static $ WriterT $ Identity (ReadEntity ioa, [name])
 
-stream :: IO (Stream a)
-stream = do
+stream :: String -> IO (Stream a)
+stream name = do
   mvarsRef <- newIORef []
   return $ Stream
-    { writeStream = Write $ \a -> do
+    { writeStream = Static $ WriterT $ Identity (Write $ \a -> do
         mvars <- readIORef mvarsRef
-        for_ mvars $ \mvar -> putMVar mvar a
-    , readStream = ReadStream $ \action -> do
+        for_ mvars $ \mvar -> putMVar mvar a, [name])
+    , readStream = Static $ WriterT $ Identity (ReadStream $ \action -> do
         mvar <- newEmptyMVar
         modifyIORef mvarsRef (mvar:)
-        void $ forkIO $ forever $ takeMVar mvar >>= action
+        void $ forkIO $ forever $ takeMVar mvar >>= action, [name])
     }
 
 foo :: Static (WriterT [String] Identity) Write a -> a -> IO ()
@@ -213,3 +214,9 @@ bar siea = let (doReadEntity, meta) = (runIdentity . runWriterT . runStatic) sie
             in do
               print meta
               runReadEntity doReadEntity
+
+baz :: Static (WriterT [String] Identity) ReadStream a -> (a -> IO ()) -> IO ()
+baz siea callback = let (doReadStream, meta) = (runIdentity . runWriterT . runStatic) siea
+            in do
+              print meta
+              runReadStream doReadStream callback

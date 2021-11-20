@@ -14,9 +14,9 @@ main = do
   middleName <- ref "middle name" "Ferguson"
   lastName <- ref "last name" "Doe"
   let fullName = firstName |&| middleName |&| lastName
-  pressure <- stream
-  temperature <- stream
-  wind <- stream
+  pressure <- stream "pressure"
+  temperature <- stream "temperature"
+  wind <- stream "wind"
   let wheatherInfo = pressure ||| temperature ||| wind
 
   -- write primitive ref
@@ -46,34 +46,40 @@ main = do
   bar (constant 5) >>= print
 
   -- read primitive stream
-  runReadStream (readStream pressure) print
-  runReadStream (readStream temperature) print
+  baz (readStream pressure) print
+  baz (readStream temperature) print
   -- read complex stream
-  runReadStream (readStream wheatherInfo) print
+  baz (readStream wheatherInfo) print
   -- fmap reading stream
-  runReadStream ((+ 10) <$> readStream pressure) print
+  baz ((+ 10) <$> readStream pressure) print
   -- compose reading streams
-  runReadStream (readStream pressure ||| readStream temperature) print
+  baz (readStream pressure ||| readStream temperature) print
   -- read empty stream
-  runReadStream empty putStrLn
+  baz empty putStrLn
 
 
   -- write primitive stream
-  getLine; runWrite (writeStream pressure) 1001
-  getLine; runWrite (writeStream temperature) 23.5
-  getLine; runWrite (writeStream wind) 2.3
+  getLine; foo (writeStream pressure) 1001
+  getLine; foo (writeStream temperature) 23.5
+  getLine; foo (writeStream wind) 2.3
   -- write complex stream
-  getLine; runWrite (writeStream wheatherInfo) (Right (Left 23.8))
+  getLine; foo (writeStream wheatherInfo) (Right (Left 23.8))
   -- contramap writing stream
-  getLine; runWrite ((+ 2) >$< writeStream pressure) 999
+  getLine; foo ((+ 2) >$< writeStream pressure) 999
   -- compose writing some stream
-  getLine; runWrite (writeStream pressure ||| writeStream temperature) (Right 19)
+  getLine; foo (writeStream pressure ||| writeStream temperature) (Right 19)
   -- compose writing all streams
-  getLine; runWrite (writeStream pressure |&| writeStream temperature) (1021, 21)
+  getLine; foo (writeStream pressure |&| writeStream temperature) (1021, 21)
   -- write to null stream
-  getLine; runWrite null 17
+  getLine; foo null 17
   -- filter stream
-  getLine; runWrite (null ||| writeStream temperature) (Right 19)
+  getLine; foo (null ||| writeStream temperature) (Right 19)
+  -- filter stream
+  getLine; foo (writeStream temperature ||| writeRef lastName) (Left 19)
+  -- write to stream or to ref
+  getLine; foo (writeStream temperature ||| writeRef firstName) (Left 19)
+  -- write to stream and to ref
+  getLine; foo (writeStream temperature |&| writeRef firstName) (19, "Ian")
 
   -- wait for propagation
   threadDelay 1000000
