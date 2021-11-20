@@ -24,12 +24,14 @@ import Control.Concurrent.MVar
 import Control.Concurrent
 import Data.Functor.Invariant (Invariant (invmap))
 
+type FRP = Static (WriterT [String] Identity)
+
 -- | Ref instantiates P2P
 -- i.e. |&| :: Ref a -> Ref b -> Ref (a, b)
 -- Ref does not instantiate Functor nor Contravariant it's Invariant.
 data Ref a = Ref
-  { writeRef :: Static (WriterT [String] Identity) Write a
-  , readRef  :: Static (WriterT [String] Identity) ReadEntity a
+  { writeRef :: FRP Write a
+  , readRef  :: FRP ReadEntity a
   }
 
 instance P2P Ref where
@@ -52,8 +54,8 @@ instance Invariant Ref where
 -- i.e. ||| :: Topic a -> Topic b -> Topic (Either a b)
 -- Topic does not instantiate Functor nor Contravariant, it's Invariant
 data Topic a = Topic
-  { writeTopic :: Static (WriterT [String] Identity) Write a
-  , readTopic  :: Static (WriterT [String] Identity) ReadStream a
+  { writeTopic :: FRP Write a
+  , readTopic  :: FRP ReadStream a
   }
 
 instance P2S Topic where
