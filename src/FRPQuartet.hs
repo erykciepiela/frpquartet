@@ -8,11 +8,10 @@ module FRPQuartet
   , Ref (..)
   , ref
   , ReadEntity (..)
-  , WriteEntity (..)
+  , Write (..)
   , Stream (..)
   , stream
   , ReadStream (..)
-  , WriteStream (..)
   , foo
   , bar
   , FRPQuartet.readIO
@@ -52,11 +51,11 @@ null :: (Contravariant f, P2P f) => f a
 null = () >$ nothing
 
 -- notice: (this function is not exported, it's just for documentation)
-_nullWriteEntity :: WriteEntity a
+_nullWriteEntity :: Write a
 _nullWriteEntity = null
 
 -- notice: (this function is not exported, it's just for documentation)
-_nullWriteStream :: WriteStream a
+_nullWriteStream :: Write a
 _nullWriteStream = null
 
 -- | Notice no @Functor f@ nor @Contravariant f@ constraint
@@ -104,7 +103,7 @@ instance (P2S p, Applicative f) => P2S (Static f p) where
 -- Ref does not instantiate Functor nor Contravariant
 -- Ref could instantiate Invariant (left to prove)
 data Ref a = Ref
-  { writeRef :: Static (WriterT [String] Identity) WriteEntity a  -- contravariant, product to product
+  { writeRef :: Static (WriterT [String] Identity) Write a  -- contravariant, product to product
   , readRef  :: Static (WriterT [String] Identity) ReadEntity a   -- covariant, product to product
   }
 
@@ -128,29 +127,12 @@ instance P2P ReadEntity where
 instance Functor ReadEntity where
   fmap f oe = ReadEntity $ f <$> runReadEntity oe
 
--- | WriteEntity instantiates P2P and additionally P2S and Contravariant
-newtype WriteEntity a = WriteEntity { runWriteEntity :: a -> IO () }
-
-instance P2S WriteEntity where
-  never = WriteEntity $ \_ -> return ()
-  ea ||| eb = WriteEntity $ \aorb -> either (runWriteEntity ea) (runWriteEntity eb) aorb
-
-instance P2P WriteEntity where
-  nothing = WriteEntity $ \_ -> return ()
-  iea |&| ieb = WriteEntity $ \(a, b) -> do
-    runWriteEntity iea a
-    runWriteEntity ieb b
-
-
-instance Contravariant WriteEntity where
-  contramap f ie = WriteEntity $ runWriteEntity ie . f
-
 -- | Stream instatiates P2S
 -- i.e. ||| :: Stream a -> Stream b -> Stream (Either a b)
 -- Stream does not instantiate Functor nor Contravariant
 -- Stream could instantiate Invariant (left to prove)
 data Stream a = Stream
-  { writeStream :: WriteStream a
+  { writeStream :: Write a
   , readStream  :: ReadStream a
   }
 
@@ -176,21 +158,21 @@ instance P2S ReadStream where
 instance Functor ReadStream where
   fmap f os = ReadStream $ \b2io -> runReadStream os (b2io . f)
 
--- | WriteStream instantiates P2S and additionally P2P and Contravariant
-newtype WriteStream a = WriteStream { runWriteStream :: a -> IO () }
+-- | Write instantiates P2S, P2P and Contravariant
+newtype Write a = Write { runWrite :: a -> IO () }
 
-instance P2S WriteStream where
-  never = WriteStream $ \_ -> return ()
-  sa ||| sb = WriteStream $ \aorb -> either (runWriteStream sa) (runWriteStream sb) aorb
+instance P2S Write where
+  never = Write $ \_ -> return ()
+  sa ||| sb = Write $ \aorb -> either (runWrite sa) (runWrite sb) aorb
 
-instance P2P WriteStream where
-  nothing = WriteStream $ \_ -> return ()
-  isa |&| isb = WriteStream $ \(a, b) -> do
-    runWriteStream isa a
-    runWriteStream isb b
+instance P2P Write where
+  nothing = Write $ \_ -> return ()
+  isa |&| isb = Write $ \(a, b) -> do
+    runWrite isa a
+    runWrite isb b
 
-instance Contravariant WriteStream where
-  contramap f is = WriteStream $ runWriteStream is . f
+instance Contravariant Write where
+  contramap f is = Write $ runWrite is . f
 
 --
 
@@ -198,7 +180,7 @@ ref :: String -> a -> IO (Ref a)
 ref name a = do
   ref <- newIORef a
   return $ Ref
-    { writeRef = Static $ WriterT $ Identity (WriteEntity $ writeIORef ref, [name])
+    { writeRef = Static $ WriterT $ Identity (Write $ writeIORef ref, [name])
     , readRef = Static $ WriterT $ Identity (ReadEntity $ readIORef ref, [name])
     }
 
@@ -211,7 +193,7 @@ stream :: IO (Stream a)
 stream = do
   mvarsRef <- newIORef []
   return $ Stream
-    { writeStream = WriteStream $ \a -> do
+    { writeStream = Write $ \a -> do
         mvars <- readIORef mvarsRef
         for_ mvars $ \mvar -> putMVar mvar a
     , readStream = ReadStream $ \action -> do
@@ -220,11 +202,11 @@ stream = do
         void $ forkIO $ forever $ takeMVar mvar >>= action
     }
 
-foo :: Static (WriterT [String] Identity) WriteEntity a -> a -> IO ()
+foo :: Static (WriterT [String] Identity) Write a -> a -> IO ()
 foo siea a = let (doWriteEntity, meta) = (runIdentity . runWriterT . runStatic) siea
                 in do
                   print meta
-                  runWriteEntity doWriteEntity a
+                  runWrite doWriteEntity a
 
 bar :: Static (WriterT [String] Identity) ReadEntity a -> IO a
 bar siea = let (doReadEntity, meta) = (runIdentity . runWriterT . runStatic) siea

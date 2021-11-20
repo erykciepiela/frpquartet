@@ -59,21 +59,21 @@ main = do
 
 
   -- write primitive stream
-  getLine; runWriteStream (writeStream pressure) 1001
-  getLine; runWriteStream (writeStream temperature) 23.5
-  getLine; runWriteStream (writeStream wind) 2.3
+  getLine; runWrite (writeStream pressure) 1001
+  getLine; runWrite (writeStream temperature) 23.5
+  getLine; runWrite (writeStream wind) 2.3
   -- write complex stream
-  getLine; runWriteStream (writeStream wheatherInfo) (Right (Left 23.8))
+  getLine; runWrite (writeStream wheatherInfo) (Right (Left 23.8))
   -- contramap writing stream
-  getLine; runWriteStream ((+ 2) >$< writeStream pressure) 999
+  getLine; runWrite ((+ 2) >$< writeStream pressure) 999
   -- compose writing some stream
-  getLine; runWriteStream (writeStream pressure ||| writeStream temperature) (Right 19)
+  getLine; runWrite (writeStream pressure ||| writeStream temperature) (Right 19)
   -- compose writing all streams
-  getLine; runWriteStream (writeStream pressure |&| writeStream temperature) (1021, 21)
+  getLine; runWrite (writeStream pressure |&| writeStream temperature) (1021, 21)
   -- write to null stream
-  getLine; runWriteStream null 17
+  getLine; runWrite null 17
   -- filter stream
-  getLine; runWriteStream (null ||| writeStream temperature) (Right 19)
+  getLine; runWrite (null ||| writeStream temperature) (Right 19)
 
   -- wait for propagation
   threadDelay 1000000
