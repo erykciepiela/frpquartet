@@ -9,6 +9,7 @@ import Data.Traversable (for)
 import Data.Foldable (for_)
 import Data.Functor.Identity (Identity (Identity, runIdentity))
 import Control.Monad.Writer (WriterT (runWriterT, WriterT))
+import Prelude hiding (null)
 
 -- | Notice no @Functor f@ nor @Contravariant f@ constraint
 -- laws:
@@ -20,13 +21,23 @@ class P2P f where
   (|&|) :: f a -> f b -> f (a, b)
   infixr 1 |&|
 
--- reading entity
 constant :: (Functor f, P2P f) => a -> f a
 constant a = a <$ nothing
 
--- writing entity or stream
+-- notice:
+constantReadEntity :: a -> ReadEntity a
+constantReadEntity = constant
+
 null :: (Contravariant f, P2P f) => f a
 null = () >$ nothing
+
+-- notice:
+nullWriteEntity :: WriteEntity a
+nullWriteEntity = null
+
+--notice:
+nullWriteStream :: WriteStream a
+nullWriteStream = null
 
 -- | Notice no @Functor f@ nor @Contravariant f@ constraint
 -- | laws:
@@ -38,10 +49,14 @@ class P2S f where
   (|||) :: f a -> f b -> f (Either a b)
   infixr 1 |||
 
--- reading stream
 empty :: (Functor f, P2S f) => f a
 empty = absurd <$> never
 
+-- notice:
+emptyReadStream :: ReadStream a
+emptyReadStream = empty
+
+-- notice:
 -- this is "abstract nonsense": I can create ad-hoc arbitrary write-stream if you give me Void
 -- this means: we can't have ad-hoc `WriteStream a`
 -- it proves WriteStream must instantiate P2P, then we can just use @null@
@@ -169,12 +184,6 @@ instance P2P WriteStream where
 
 instance Contravariant WriteStream where
   contramap f is = WriteStream $ runWriteStream is . f
-
-changeEntity :: ReadStream a -> WriteEntity a -> IO ()
-changeEntity = undefined
-
-captureEntityChange :: ReadEntity a -> WriteStream a -> IO ()
-captureEntityChange = undefined
 
 --
 
