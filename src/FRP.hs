@@ -29,8 +29,9 @@ import Data.Functor.Invariant (Invariant (invmap))
 
 type FRP = Static (WriterT [String] Identity)
 
--- | Ref instantiates CollapseP2P
+-- | Ref instantiates CollapseP2P, ExpandS2P
 -- i.e. |&| :: Ref a -> Ref b -> Ref (a, b)
+-- i.e. expand :: Ref (Either a b) -> (Ref a, Ref b)
 -- Ref does not instantiate Functor nor Contravariant it's Invariant.
 data Ref a = Ref
   { writeRef :: FRP WriteEntity a
@@ -46,6 +47,18 @@ instance CollapseP2P Ref where
     { writeRef = writeRef ea |&| writeRef eb
     , readRef = readRef ea |&| readRef eb
     }
+instance ExpandS2P Ref where
+  foo = Ref
+    { writeRef = foo
+    , readRef = foo
+    }
+  expand r = (Ref
+    { writeRef = fst . expand $ writeRef r
+    , readRef = fst . expand $ readRef r
+    }, Ref
+    { writeRef = snd . expand $ writeRef r
+    , readRef = snd . expand $ readRef r
+    })
 
 instance Invariant Ref where
   invmap f g ref = Ref
@@ -53,8 +66,9 @@ instance Invariant Ref where
     , readRef = f <$> readRef ref
     }
 
--- | Topic instatiates CollapseP2S
+-- | Topic instatiates CollapseP2S, ExpandS2P
 -- i.e. ||| :: Topic a -> Topic b -> Topic (Either a b)
+-- i.e. expand :: Topic (Either a b) -> (Topic a, Topic b)
 -- Topic does not instantiate Functor nor Contravariant, it's Invariant
 data Topic a = Topic
   { writeTopic :: FRP WriteStream a
@@ -70,6 +84,19 @@ instance CollapseP2S Topic where
     { writeTopic = writeTopic ea ||| writeTopic eb
     , subscribeTopic = subscribeTopic ea ||| subscribeTopic eb
     }
+
+instance ExpandS2P Topic where
+  foo = Topic
+    { writeTopic = foo
+    , subscribeTopic = foo
+    }
+  expand t = (Topic
+    { writeTopic = fst . expand $ writeTopic t
+    , subscribeTopic = fst . expand $ subscribeTopic t
+    }, Topic
+    { writeTopic = snd . expand $ writeTopic t
+    , subscribeTopic = snd . expand $ subscribeTopic t
+    })
 
 instance Invariant Topic where
   invmap f g topic = Topic
