@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module FirstExample where
 
 import Quartet
@@ -11,23 +12,27 @@ import Prelude hiding (read, null, readIO)
 import Data.Functor.Invariant (Invariant(invmap))
 import Data.Tuple (swap)
 
+newtype Address = Address String deriving Show
+newtype Coords = Coords String deriving Show
+
 main :: IO ()
 main = do
   -- refs
-  firstName <- ref "first name"
-  middleName <- ref "middle name"
-  lastName <- ref "last name"
+  firstName <- ref @String "first name"
+  middleName <- ref @String "middle name"
+  lastName <- ref @String "last name"
+  location <- ref @(Either Address Coords) "security"
+  let person = firstName |&| middleName |&| lastName |&| location
+
   tuple <- ref "tuple"
   let tupleSwapped = invmap swap swap tuple
-  let fullName = firstName |&| middleName |&| lastName
-
   -- writes
 
   -- write primitive ref
   let writeFirstName = writeRef firstName
   let writeLastName = writeRef lastName
   -- write complex ref
-  let writeFullName = writeRef fullName
+  let writePerson = writeRef person
   -- contramap writing ref
   let writeReversedFirstName = reverse >$< writeFirstName
   -- writing to multiple refs
@@ -47,7 +52,7 @@ main = do
   let wheatherInfo = pressure ||| temperature ||| wind
 
   writeEntity writeFirstName "Sam"
-  writeEntity writeFullName ("Paul", ("Adam", "Smith"))
+  writeEntity writePerson ("Paul", ("Adam", ("Smith", Right $ Coords "50N20E")))
   writeEntity writeReversedFirstName "namweN"
   writeEntity writeFirstAndLastName ("Henry", "Ford")
   writeEntity writeNull "abc"
@@ -57,7 +62,7 @@ main = do
   -- read primitive ref
   readEntity (readRef lastName) >>= print
   -- read complex ref
-  readEntity (readRef fullName) >>= print
+  readEntity (readRef person) >>= print
   -- fmap reading ref
   readEntity (take 3 <$> readRef lastName) >>= print
   -- compose reading all refs
