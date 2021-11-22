@@ -34,6 +34,13 @@ main = do
   _location <- ref @(Either Address Coords) "location"
   let person = _firstName |&| _lastName |&| _location
 
+  -- topics
+  _pressure <- topic @Pressure "pressure"
+  _temperature <- topic @Temperature "temperature"
+  _wind <- topic @Wind "wind"
+  let wheatherInfo = _pressure ||| _temperature ||| _wind
+
+
   let writePerson = writeRef person
   getLine; writeEntity writePerson ("Paul", ("Smith", Right "50N20E"))
 
@@ -69,11 +76,7 @@ main = do
   let readCurrentTime = readIO "current time" getCurrentTime
   getLine; readEntity readCurrentTime >>= print
 
-  -- topics
-  _pressure <- topic @Pressure "pressure"
-  _temperature <- topic @Temperature "temperature"
-  _wind <- topic @Wind "wind"
-  let wheatherInfo = _pressure ||| _temperature ||| _wind
+  ---
 
   foo <- topic @(Int, Bool) "whatever"
   let fooSwapped = invmap swap swap foo
