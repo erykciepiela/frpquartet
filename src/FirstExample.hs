@@ -40,6 +40,10 @@ main = do
   _wind <- topic @Wind "wind"
   let wheatherInfo = _pressure ||| _temperature ||| _wind
 
+  app person wheatherInfo
+
+app :: Ref (FirstName, (LastName, Either Address Coords)) -> Topic (Either Pressure (Either Temperature Wind)) -> IO ()
+app person wheatherInfo = do
 
   let writePerson = writeRef person
   getLine; writeEntity writePerson ("Paul", ("Smith", Right "50N20E"))
