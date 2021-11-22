@@ -12,90 +12,78 @@ import Prelude hiding (read, null, readIO)
 import Data.Functor.Invariant (Invariant(invmap))
 import Data.Tuple (swap)
 
+data Person = Person
+  { firstName :: FirstName
+  , lastName :: LastName
+  , location :: Location }
+  deriving Show
+
 type FirstName = String
+
 type LastName = String
-type Address = String
-type Coords = String
-type Temperature = Float
-type Pressure = Int
-type Wind = Float
 
-thrd :: (a, (b, c)) -> c
-thrd (_, (_, a)) = a
+data Location
+  = Address String
+  | Coords String
+  deriving Show
 
-snd' :: (a, (b, c)) -> b
-snd' (_, (b, _)) = b
+data WheatherInfo
+  = Pressure Int
+  | Temperature Float
+  | Wind Float
+  deriving Show
 
 main :: IO ()
-main = do
-  -- refs
-  _firstName <- ref @FirstName "first name"
-  _lastName <- ref @LastName "last name"
-  _location <- ref @(Either Address Coords) "location"
-  let person = _firstName |&| _lastName |&| _location
+main = app person text wheatherInfo
+  where
+    person = ref @Person "person"
+    text = ref @String "text"
+    wheatherInfo = topic @WheatherInfo "wheather info"
 
-  -- topics
-  _pressure <- topic @Pressure "pressure"
-  _temperature <- topic @Temperature "temperature"
-  _wind <- topic @Wind "wind"
-  let wheatherInfo = _pressure ||| _temperature ||| _wind
-
-  app person wheatherInfo
-
-app :: Ref (FirstName, (LastName, Either Address Coords)) -> Topic (Either Pressure (Either Temperature Wind)) -> IO ()
-app person wheatherInfo = do
+app :: Static IO Ref Person -> Static IO Ref String -> Static IO Topic WheatherInfo -> IO ()
+app person' text' wheatherInfo' = do
+  person <- runStatic person'
+  wheatherInfo <- runStatic wheatherInfo'
 
   let writePerson = writeRef person
-  getLine; writeEntity writePerson ("Paul", ("Smith", Right "50N20E"))
+  writeEntity writePerson $ Person { firstName = "Paul", lastName = "Smith", location = Coords "50N20E" }
 
   let writeReversedFirstName = undefined >$< writePerson -- TODO
 
-  let writeNull = null
-  getLine; writeEntity writeNull 12
-
-  let writeUnwritable = foo
-  getLine; writeEntity writeUnwritable undefined
-
   let readPerson = readRef person
-  getLine; readEntity readPerson >>= print
+  testRead "Person" readPerson
 
-  let readFirstName = fst <$> readPerson
-  getLine; readEntity readFirstName >>= print
+  let readFirstName = firstName <$> readPerson
+  testRead "First Name" readFirstName
 
-  let readLastName = snd' <$> readPerson
-  getLine; readEntity readLastName >>= print
+  let readLastName = lastName <$> readPerson
+  testRead "Last Name" readLastName
 
   let readFirstAndLastName = (,) <$> readFirstName <*> readLastName
-  getLine; readEntity readFirstAndLastName >>= print
+  testRead "First and Last Name" readFirstAndLastName
 
-  let readAddress = fst $ expand $ thrd <$> readPerson
-  getLine; readEntity readAddress >>= print
+  -- let readAddress = fst $ expand $ thrd <$> readPerson
+  -- testRead "Address" readAddress
 
-  let readCoords = snd $ expand $ thrd <$> readPerson
-  getLine; readEntity readCoords >>= print
+  -- let readCoords = snd $ expand $ thrd <$> readPerson
+  -- testRead "Coords" readCoords
 
-  let readConstant = constant 5
-  getLine; readEntity readConstant >>= print
+  let readFive = constant 5
+  testRead "Five" readFive
 
   let readCurrentTime = readIO "current time" getCurrentTime
-  getLine; readEntity readCurrentTime >>= print
-
-  ---
-
-  foo <- topic @(Int, Bool) "whatever"
-  let fooSwapped = invmap swap swap foo
-
-  tuple <- ref "tuple"
-  let tupleSwapped = invmap swap swap tuple
+  testRead "Current Time" readCurrentTime
 
   --
   let subscribeWheatherInfo = subscribeTopic wheatherInfo
   subscribe subscribeWheatherInfo print
 
-  let subscribePressure = fst $ expand subscribeWheatherInfo
+  -- let subscribePressure = fst $ expand subscribeWheatherInfo
+  let subscribePressure = undefined :: FRP SubscribeStream Int
   subscribe subscribePressure print
 
-  let subscribeTemperature = snd $ expand subscribeWheatherInfo
+  -- let subscribeTemperature = snd $ expand subscribeWheatherInfo
+  let subscribeTemperature = undefined :: FRP SubscribeStream Float
   subscribe subscribeTemperature print
 
   let subscribeAdjustedPressure = (+ 10) <$> subscribePressure
@@ -109,16 +97,19 @@ app person wheatherInfo = do
 
   let writeWhetherInfo = writeTopic wheatherInfo
 
-  let writePressure = fst $ expand writeWhetherInfo
+  -- let writePressure = fst $ expand writeWhetherInfo
+  let writePressure = undefined :: FRP WriteStream Int
   getLine; writeStream writePressure 1002
 
   let writeAdjustedPressure = (+ 10) >$< writePressure
   getLine; writeStream writePressure 1002
 
-  let writeTemeprature = fst $ expand $ snd $ expand writeWhetherInfo
+  -- let writeTemeprature = fst $ expand $ snd $ expand writeWhetherInfo
+  let writeTemeprature = undefined
   getLine; writeStream writeTemeprature 23.8
 
-  let writeWind = snd $ expand $ snd $ expand writeWhetherInfo
+  -- let writeWind = snd $ expand $ snd $ expand writeWhetherInfo
+  let writeWind = snd undefined
   getLine; writeStream writeWind 23.8
 
   -- wait for propagation

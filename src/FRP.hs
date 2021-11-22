@@ -13,6 +13,10 @@ module FRP
   , subscribe
   , writeStream
   , FRP.readIO
+
+  , testRead
+
+  , FRP
   ) where
 
 import Quartet
@@ -170,8 +174,8 @@ instance Functor SubscribeStream where
 
 --
 
-ref :: String -> IO (Ref a)
-ref name = do
+ref :: String -> Static IO Ref a
+ref name = Static $ do
   ref <- newIORef Nothing
   return $ Ref
     { writeRef = Static $ WriterT $ Identity (WriteEntity $ writeIORef ref . Just, [name])
@@ -183,8 +187,8 @@ type ReadIO a = IO a
 readIO :: String -> ReadIO a -> FRP ReadEntity a
 readIO name ioa = Static $ WriterT $ Identity (ReadEntity (Just <$> ioa), [name])
 
-topic :: String -> IO (Topic a)
-topic name = do
+topic :: String -> Static IO Topic a
+topic name = Static $ do
   mvarsRef <- newIORef []
   return $ Topic
     { writeTopic = Static $ WriterT $ Identity (WriteStream $ \a -> do
@@ -256,3 +260,12 @@ _emptyReadStream = empty
 -- if you need to create ad-hoc arbitrary contravariant you have to use CollapseP2P and @null@
 _nullP2S :: (Contravariant f, CollapseP2S f) => (a -> Void) -> f a
 _nullP2S f = f >$< never
+
+
+--
+
+testRead :: Show a => String -> FRP ReadEntity a -> IO ()
+testRead prompt read = do
+  readEntity read >>= putStrLn . ((prompt <> ": ") <>) . show
+  putStrLn "(press to continue...)"
+  void getLine
