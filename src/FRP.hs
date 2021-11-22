@@ -148,6 +148,9 @@ instance ExpandS2P ReadEntity where
 instance Functor ReadEntity where
   fmap f oe = ReadEntity $ fmap f <$> runReadEntity oe
 
+instance Applicative ReadEntity where
+  pure = constant
+  ref <*> rea = (\(f, a) -> f a) <$> (ref |&| rea)
 
 -- | SubscribeStream instantiates CollapseP2S, ExpandS2P and Functor
 newtype SubscribeStream a = SubscribeStream { runSubscibeStream :: (a -> IO ()) -> IO () }

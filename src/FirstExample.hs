@@ -12,101 +12,107 @@ import Prelude hiding (read, null, readIO)
 import Data.Functor.Invariant (Invariant(invmap))
 import Data.Tuple (swap)
 
-newtype Address = Address String deriving Show
-newtype Coords = Coords String deriving Show
+type FirstName = String
+type LastName = String
+type Address = String
+type Coords = String
+type Temperature = Float
+type Pressure = Int
+type Wind = Float
+
+thrd :: (a, (b, c)) -> c
+thrd (_, (_, a)) = a
+
+snd' :: (a, (b, c)) -> b
+snd' (_, (b, _)) = b
 
 main :: IO ()
 main = do
   -- refs
-  firstName <- ref @String "first name"
-  middleName <- ref @String "middle name"
-  lastName <- ref @String "last name"
-  location <- ref @(Either Address Coords) "security"
-  let person = firstName |&| middleName |&| lastName |&| location
+  _firstName <- ref @FirstName "first name"
+  _lastName <- ref @LastName "last name"
+  _location <- ref @(Either Address Coords) "location"
+  let person = _firstName |&| _lastName |&| _location
+
+  let writePerson = writeRef person
+  getLine; writeEntity writePerson ("Paul", ("Smith", Right "50N20E"))
+
+  let writeReversedFirstName = undefined >$< writePerson -- TODO
+
+  let writeNull = null
+  getLine; writeEntity writeNull 12
+
+  let writeUnwritable = foo
+  getLine; writeEntity writeUnwritable undefined
+
+  let readPerson = readRef person
+  getLine; readEntity readPerson >>= print
+
+  let readFirstName = fst <$> readPerson
+  getLine; readEntity readFirstName >>= print
+
+  let readLastName = snd' <$> readPerson
+  getLine; readEntity readLastName >>= print
+
+  let readFirstAndLastName = (,) <$> readFirstName <*> readLastName
+  getLine; readEntity readFirstAndLastName >>= print
+
+  let readAddress = fst $ expand $ thrd <$> readPerson
+  getLine; readEntity readAddress >>= print
+
+  let readCoords = snd $ expand $ thrd <$> readPerson
+  getLine; readEntity readCoords >>= print
+
+  let readConstant = constant 5
+  getLine; readEntity readConstant >>= print
+
+  let readCurrentTime = readIO "current time" getCurrentTime
+  getLine; readEntity readCurrentTime >>= print
+
+  -- topics
+  _pressure <- topic @Pressure "pressure"
+  _temperature <- topic @Temperature "temperature"
+  _wind <- topic @Wind "wind"
+  let wheatherInfo = _pressure ||| _temperature ||| _wind
+
+  foo <- topic @(Int, Bool) "whatever"
+  let fooSwapped = invmap swap swap foo
 
   tuple <- ref "tuple"
   let tupleSwapped = invmap swap swap tuple
-  -- writes
 
-  -- write primitive ref
-  let writeFirstName = writeRef firstName
-  let writeLastName = writeRef lastName
-  -- write complex ref
-  let writePerson = writeRef person
-  -- contramap writing ref
-  let writeReversedFirstName = reverse >$< writeFirstName
-  -- writing to multiple refs
-  let writeFirstAndLastName = writeFirstName |&| writeLastName
-  -- write to no ref
-  let writeNull = null
-  -- -- write to chosen ref
-  -- let writeFirstOrLastName = writeFirstName ||| writeLastName
-  -- write to write that cannot be written
-  let writeUnwritable = foo
+  --
+  let subscribeWheatherInfo = subscribeTopic wheatherInfo
+  subscribe subscribeWheatherInfo print
 
-  pressure <- topic "pressure"
-  temperature <- topic "temperature"
-  wind <- topic "wind"
-  foo <- topic @(Int, Bool) "whatever"
-  let fooSwapped = invmap swap swap foo
-  let wheatherInfo = pressure ||| temperature ||| wind
+  let subscribePressure = fst $ expand subscribeWheatherInfo
+  subscribe subscribePressure print
 
-  writeEntity writeFirstName "Sam"
-  writeEntity writePerson ("Paul", ("Adam", ("Smith", Right $ Coords "50N20E")))
-  writeEntity writeReversedFirstName "namweN"
-  writeEntity writeFirstAndLastName ("Henry", "Ford")
-  writeEntity writeNull "abc"
-  -- writeEntity writeFirstOrLastName (Right "Ford!")
-  writeEntity writeUnwritable undefined
+  let subscribeTemperature = snd $ expand subscribeWheatherInfo
+  subscribe subscribeTemperature print
 
-  -- read primitive ref
-  readEntity (readRef lastName) >>= print
-  -- read complex ref
-  readEntity (readRef person) >>= print
-  -- fmap reading ref
-  readEntity (take 3 <$> readRef lastName) >>= print
-  -- compose reading all refs
-  readEntity (readRef firstName |&| readRef lastName) >>= print
-  -- read from IO
-  readEntity (readIO "current time" getCurrentTime) >>= print
-  -- read constant
-  readEntity (constant 5) >>= print
+  let subscribeAdjustedPressure = (+ 10) <$> subscribePressure
+  subscribe subscribeAdjustedPressure print
 
-  -- read primitive topic
-  subscribe (subscribeTopic pressure) print
-  subscribe (subscribeTopic temperature) print
-  -- read complex topic
-  subscribe (subscribeTopic wheatherInfo) print
-  -- fmap reading topic
-  subscribe ((+ 10) <$> subscribeTopic pressure) print
-  -- compose reading streams
-  subscribe (subscribeTopic pressure ||| subscribeTopic temperature) print
-  -- read empty topic
-  subscribe empty putStrLn
+  let subscribePressureAndTemperature = subscribePressure ||| subscribeTemperature
+  subscribe subscribePressureAndTemperature print
 
+  let subscribeEmpty = empty @Int
+  subscribe subscribeEmpty print
 
-  -- write primitive topic
-  getLine; writeStream (writeTopic pressure) 1001
-  getLine; writeStream (writeTopic temperature) 23.5
-  getLine; writeStream (writeTopic wind) 2.3
-  -- write complex topic
-  getLine; writeStream (writeTopic wheatherInfo) (Right (Left 23.8))
-  -- contramap writing topic
-  getLine; writeStream ((+ 2) >$< writeTopic pressure) 999
-  -- compose writing some topic
-  getLine; writeStream (writeTopic pressure ||| writeTopic temperature) (Right 19)
-  -- -- compose writing all streams
-  -- getLine; writeStream (writeTopic pressure |&| writeTopic temperature) (1021, 21)
-  -- write to null topic
-  -- getLine; writeStream null 17
-  -- filter topic
-  -- getLine; writeStream (null ||| writeTopic temperature) (Right 19)
-  -- -- filter topic
-  -- getLine; writeStream (writeTopic temperature ||| writeRef lastName) (Left 19)
-  -- -- write to topic or to ref
-  -- getLine; writeStream (writeTopic temperature ||| writeRef firstName) (Left 19)
-  -- -- write to topic and to ref
-  -- getLine; writeStream (writeTopic temperature |&| writeRef firstName) (19, "Ian")
+  let writeWhetherInfo = writeTopic wheatherInfo
+
+  let writePressure = fst $ expand writeWhetherInfo
+  getLine; writeStream writePressure 1002
+
+  let writeAdjustedPressure = (+ 10) >$< writePressure
+  getLine; writeStream writePressure 1002
+
+  let writeTemeprature = fst $ expand $ snd $ expand writeWhetherInfo
+  getLine; writeStream writeTemeprature 23.8
+
+  let writeWind = snd $ expand $ snd $ expand writeWhetherInfo
+  getLine; writeStream writeWind 23.8
 
   -- wait for propagation
   threadDelay 1000000

@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 module Quartet
   ( CollapseP2P (nothing, (|&|))
   , constant
@@ -28,6 +29,12 @@ constant a = a <$ nothing
 null :: (Contravariant f, CollapseP2P f) => f a
 null = () >$ nothing
 
+-- this requies {-# LANGUAGE FlexibleInstances #-} and {-# LANGUAGE UndecidableInstances #-}
+-- instance (Functor f, CollapseP2P f) => Applicative f where
+--   pure = constant
+--   ref <*> rea = (\(f, a) -> f a) <$> (ref |&| rea)
+
+
 -- | Notice no @Functor f@ nor @Contravariant f@ constraint
 -- | laws:
 -- | u ||| never ~= u
@@ -38,7 +45,7 @@ class CollapseP2S f where
   (|||) :: f a -> f b -> f (Either a b)
   infixr 1 |||
 
-empty :: (Functor f, CollapseP2S f) => f a
+empty :: forall a f . (Functor f, CollapseP2S f) => f a -- @forall@ for more convenient use of TypeApplications extension
 empty = absurd <$> never
 
 class ExpandS2P f where
@@ -54,6 +61,10 @@ newtype Static f p a = Static { runStatic :: f (p a) }
 
 instance (Functor p, Applicative f) => Functor (Static f p) where
   fmap f s = Static $ fmap f <$> runStatic s
+
+instance (Applicative p, Applicative f) => Applicative (Static f p) where
+  pure a = Static $ pure $ pure a
+  sfpf <*> sfpa = Static $ (<*>) <$> runStatic sfpf <*> runStatic sfpa
 
 instance (Contravariant p, Applicative f) => Contravariant (Static f p) where
   contramap f s = Static $ contramap f <$> runStatic s
