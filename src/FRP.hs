@@ -1,14 +1,17 @@
+{-# LANGUAGE LambdaCase #-}
 module FRP
   ( Ref (..)
   , ref
-  , ReadEntity (..)
-  , Write (..)
   , Topic (..)
   , topic
+  , ReadEntity (..)
+  , WriteEntity (..)
+  , WriteStream (..)
   , SubscribeStream (..)
-  , write
-  , FRP.read
+  , readEntity
+  , writeEntity
   , subscribe
+  , writeStream
   , FRP.readIO
   ) where
 
@@ -26,15 +29,15 @@ import Data.Functor.Invariant (Invariant (invmap))
 
 type FRP = Static (WriterT [String] Identity)
 
--- | Ref instantiates P2P
+-- | Ref instantiates CollapseP2P
 -- i.e. |&| :: Ref a -> Ref b -> Ref (a, b)
 -- Ref does not instantiate Functor nor Contravariant it's Invariant.
 data Ref a = Ref
-  { writeRef :: FRP Write a
+  { writeRef :: FRP WriteEntity a
   , readRef  :: FRP ReadEntity a
   }
 
-instance P2P Ref where
+instance CollapseP2P Ref where
   nothing = Ref
     { writeRef = nothing
     , readRef = nothing
@@ -50,17 +53,17 @@ instance Invariant Ref where
     , readRef = f <$> readRef ref
     }
 
--- | Topic instatiates P2S
+-- | Topic instatiates CollapseP2S
 -- i.e. ||| :: Topic a -> Topic b -> Topic (Either a b)
 -- Topic does not instantiate Functor nor Contravariant, it's Invariant
 data Topic a = Topic
-  { writeTopic :: FRP Write a
+  { writeTopic :: FRP WriteStream a
   , subscribeTopic  :: FRP SubscribeStream a
   }
 
-instance P2S Topic where
+instance CollapseP2S Topic where
   never = Topic
-    { writeTopic = never
+    { writeTopic = foo
     , subscribeTopic = never
     }
   ea ||| eb = Topic
@@ -74,65 +77,87 @@ instance Invariant Topic where
     , subscribeTopic = f <$> subscribeTopic topic
     }
 
--- | Write instantiates P2S, P2P and Contravariant
-newtype Write a = Write { runWrite :: a -> IO () }
+-- | WriteEntity instantiates CollapseP2P, ExpandS2P and Contravariant
+newtype WriteEntity a = WriteEntity { runWriteEntity :: a -> IO () }
 
-instance P2S Write where
-  never = Write $ \_ -> return ()
-  sa ||| sb = Write $ \aorb -> either (runWrite sa) (runWrite sb) aorb
+instance CollapseP2P WriteEntity where
+  nothing = WriteEntity $ \_ -> return ()
+  isa |&| isb = WriteEntity $ \(a, b) -> do
+    runWriteEntity isa a
+    runWriteEntity isb b
 
-instance P2P Write where
-  nothing = Write $ \_ -> return ()
-  isa |&| isb = Write $ \(a, b) -> do
-    runWrite isa a
-    runWrite isb b
+instance ExpandS2P WriteEntity where
+  foo = WriteEntity $ \_ -> return ()
+  expand w = (WriteEntity $ runWriteEntity w . Left, WriteEntity $ runWriteEntity w . Right)
 
-instance Contravariant Write where
-  contramap f is = Write $ runWrite is . f
+instance Contravariant WriteEntity where
+  contramap f is = WriteEntity $ runWriteEntity is . f
 
--- | ReadEntity instantiates P2P and Functor
-newtype ReadEntity a = ReadEntity { runReadEntity :: IO a }
+-- | WriteStream instantiates CollapseP2S, ExpandS2P and Contravariant
+newtype WriteStream a = WriteStream { runWriteStream :: a -> IO () }
 
-instance P2P ReadEntity where
-  nothing = ReadEntity $ return ()
-  oea |&| oeb = ReadEntity $ (,) <$> runReadEntity oea <*> runReadEntity oeb
+instance CollapseP2S WriteStream where
+  never = WriteStream $ \_ -> return ()
+  isa ||| isb = WriteStream $ either (runWriteStream isa) (runWriteStream isb)
+
+instance ExpandS2P WriteStream where
+  foo = WriteStream $ \_ -> return ()
+  expand w = (WriteStream $ runWriteStream w . Left, WriteStream $ runWriteStream w . Right)
+
+instance Contravariant WriteStream where
+  contramap f is = WriteStream $ runWriteStream is . f
+
+-- | ReadEntity instantiates CollapseP2P, ExpandS2P and Functor
+newtype ReadEntity a = ReadEntity { runReadEntity :: IO (Maybe a) }
+
+instance CollapseP2P ReadEntity where
+  nothing = ReadEntity $ return (Just ())
+  oea |&| oeb = ReadEntity $ (\ma mb -> (,) <$> ma <*> mb) <$> runReadEntity oea <*> runReadEntity oeb
+
+instance ExpandS2P ReadEntity where
+  foo = ReadEntity $ return Nothing
+  expand re = (ReadEntity $ maybe Nothing (either Just (const Nothing)) <$> runReadEntity re, ReadEntity $ maybe Nothing (either (const Nothing) Just) <$> runReadEntity re)
 
 instance Functor ReadEntity where
-  fmap f oe = ReadEntity $ f <$> runReadEntity oe
+  fmap f oe = ReadEntity $ fmap f <$> runReadEntity oe
 
 
--- | SubscribeStream instantiates P2S and Functor
-newtype SubscribeStream a = SubscribeStream { runReadStream :: (a -> IO ()) -> IO () }
+-- | SubscribeStream instantiates CollapseP2S, ExpandS2P and Functor
+newtype SubscribeStream a = SubscribeStream { runSubscibeStream :: (a -> IO ()) -> IO () }
 
-instance P2S SubscribeStream where
+instance CollapseP2S SubscribeStream where
   never = SubscribeStream $ \_ -> return ()
   osa ||| osb = SubscribeStream $ \aorb2io -> do
-    runReadStream osa $ aorb2io . Left
-    runReadStream osb $ aorb2io . Right
+    runSubscibeStream osa $ aorb2io . Left
+    runSubscibeStream osb $ aorb2io . Right
+
+instance ExpandS2P SubscribeStream where
+  foo = SubscribeStream $ \_ -> return ()
+  expand ss = (SubscribeStream $ \a2io -> runSubscibeStream ss $ \aorb -> either a2io (const (return ())) aorb, SubscribeStream $ \b2io -> runSubscibeStream ss $ \aorb -> either (const (return ())) b2io aorb)
 
 instance Functor SubscribeStream where
-  fmap f os = SubscribeStream $ \b2io -> runReadStream os (b2io . f)
+  fmap f os = SubscribeStream $ \b2io -> runSubscibeStream os (b2io . f)
 
 --
 
-ref :: String -> a -> IO (Ref a)
-ref name a = do
-  ref <- newIORef a
+ref :: String -> IO (Ref a)
+ref name = do
+  ref <- newIORef Nothing
   return $ Ref
-    { writeRef = Static $ WriterT $ Identity (Write $ writeIORef ref, [name])
+    { writeRef = Static $ WriterT $ Identity (WriteEntity $ writeIORef ref . Just, [name])
     , readRef = Static $ WriterT $ Identity (ReadEntity $ readIORef ref, [name])
     }
 
 type ReadIO a = IO a
 
 readIO :: String -> ReadIO a -> FRP ReadEntity a
-readIO name ioa = Static $ WriterT $ Identity (ReadEntity ioa, [name])
+readIO name ioa = Static $ WriterT $ Identity (ReadEntity (Just <$> ioa), [name])
 
 topic :: String -> IO (Topic a)
 topic name = do
   mvarsRef <- newIORef []
   return $ Topic
-    { writeTopic = Static $ WriterT $ Identity (Write $ \a -> do
+    { writeTopic = Static $ WriterT $ Identity (WriteStream $ \a -> do
         mvars <- readIORef mvarsRef
         for_ mvars $ \mvar -> putMVar mvar a, [name])
     , subscribeTopic = Static $ WriterT $ Identity (SubscribeStream $ \action -> do
@@ -141,14 +166,20 @@ topic name = do
         void $ forkIO $ forever $ takeMVar mvar >>= action, [name])
     }
 
-write :: FRP Write a -> a -> IO ()
-write siea a = let (doWriteEntity, meta) = (runIdentity . runWriterT . runStatic) siea
+writeEntity :: FRP WriteEntity a -> a -> IO ()
+writeEntity siea a = let (doWriteEntity, meta) = (runIdentity . runWriterT . runStatic) siea
                 in do
                   print meta
-                  runWrite doWriteEntity a
+                  runWriteEntity doWriteEntity a
 
-read :: FRP ReadEntity a -> IO a
-read siea = let (doReadEntity, meta) = (runIdentity . runWriterT . runStatic) siea
+writeStream :: FRP WriteStream a -> a -> IO ()
+writeStream siea a = let (doWriteStream, meta) = (runIdentity . runWriterT . runStatic) siea
+                in do
+                  print meta
+                  runWriteStream doWriteStream a
+
+readEntity :: FRP ReadEntity a -> IO (Maybe a)
+readEntity siea = let (doReadEntity, meta) = (runIdentity . runWriterT . runStatic) siea
             in do
               print meta
               runReadEntity doReadEntity
@@ -157,7 +188,7 @@ subscribe :: FRP SubscribeStream a -> (a -> IO ()) -> IO ()
 subscribe siea callback = let (doReadStream, meta) = (runIdentity . runWriterT . runStatic) siea
             in do
               print meta
-              runReadStream doReadStream callback
+              runSubscibeStream doReadStream callback
 
 -- last but not least, things for free (these functions are not exported, it's just for documentation)
 
@@ -167,16 +198,16 @@ _nothingRef = nothing
 _nothingReadEntity :: ReadEntity ()
 _nothingReadEntity = nothing
 
-_nothingWrite :: Write ()
+_nothingWrite :: WriteEntity ()
 _nothingWrite = nothing
 
 _constantReadEntity :: a -> ReadEntity a
 _constantReadEntity = constant
 
-_nullWriteEntity :: Write a
+_nullWriteEntity :: WriteEntity a
 _nullWriteEntity = null
 
-_nullWriteStream :: Write a
+_nullWriteStream :: WriteEntity a
 _nullWriteStream = null
 
 _neverTopic :: Topic Void
@@ -185,13 +216,13 @@ _neverTopic = never
 _neverReadStream :: SubscribeStream Void
 _neverReadStream = never
 
-_neverWrite :: Write Void
-_neverWrite = never
+_neverWrite :: WriteEntity Void
+_neverWrite = foo
 
 _emptyReadStream :: SubscribeStream a
 _emptyReadStream = empty
 
--- you cannot create ad-hoc arbitrary contravariant P2S
--- if you need to create ad-hoc arbitrary contravariant you have to use P2P and @null@
-_nullP2S :: (Contravariant f, P2S f) => (a -> Void) -> f a
+-- you cannot create ad-hoc arbitrary contravariant CollapseP2S
+-- if you need to create ad-hoc arbitrary contravariant you have to use CollapseP2P and @null@
+_nullP2S :: (Contravariant f, CollapseP2S f) => (a -> Void) -> f a
 _nullP2S f = f >$< never

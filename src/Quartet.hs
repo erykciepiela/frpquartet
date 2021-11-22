@@ -1,9 +1,10 @@
 module Quartet
-  ( P2P (nothing, (|&|))
+  ( CollapseP2P (nothing, (|&|))
   , constant
   , null
-  , P2S (never, (|||))
+  , CollapseP2S (never, (|||))
   , empty
+  , ExpandS2P (foo, expand)
   , Static (..)
   ) where
 
@@ -16,15 +17,15 @@ import           Prelude                    hiding (null)
 -- u |&| nothing ~= u
 -- nothing |&| u ~= u
 -- (u |&| w) |&| z ~= u |&| (w |&| z)
-class P2P f where
+class CollapseP2P f where
   nothing :: f ()
   (|&|) :: f a -> f b -> f (a, b)
   infixr 1 |&|
 
-constant :: (Functor f, P2P f) => a -> f a
+constant :: (Functor f, CollapseP2P f) => a -> f a
 constant a = a <$ nothing
 
-null :: (Contravariant f, P2P f) => f a
+null :: (Contravariant f, CollapseP2P f) => f a
 null = () >$ nothing
 
 -- | Notice no @Functor f@ nor @Contravariant f@ constraint
@@ -32,13 +33,22 @@ null = () >$ nothing
 -- | u ||| never ~= u
 -- | never ||| u ~= u
 -- | (u ||| w) ||| z ~= u ||| (w ||| z)
-class P2S f where
+class CollapseP2S f where
   never :: f Void
   (|||) :: f a -> f b -> f (Either a b)
   infixr 1 |||
 
-empty :: (Functor f, P2S f) => f a
+empty :: (Functor f, CollapseP2S f) => f a
 empty = absurd <$> never
+
+class ExpandS2P f where
+  foo :: f Void
+  expand :: f (Either a b) -> (f a, f b)
+
+empty' :: (ExpandS2P f, Functor f) => f a
+empty' = absurd <$> foo
+
+--
 
 newtype Static f p a = Static { runStatic :: f (p a) }
 
@@ -48,10 +58,14 @@ instance (Functor p, Applicative f) => Functor (Static f p) where
 instance (Contravariant p, Applicative f) => Contravariant (Static f p) where
   contramap f s = Static $ contramap f <$> runStatic s
 
-instance (P2P p, Applicative f) => P2P (Static f p) where
+instance (CollapseP2P p, Applicative f) => CollapseP2P (Static f p) where
   nothing = Static $ pure nothing
   sa |&| sb = Static $ (|&|) <$> runStatic sa <*> runStatic sb
 
-instance (P2S p, Applicative f) => P2S (Static f p) where
+instance (CollapseP2S p, Applicative f) => CollapseP2S (Static f p) where
   never = Static $ pure never
   sa ||| sb = Static $ (|||) <$> runStatic sa <*> runStatic sb
+
+instance (ExpandS2P p, Applicative f) => ExpandS2P (Static f p) where
+  foo = Static $ pure foo
+  expand s = (Static $ fst . expand <$> runStatic s, Static $ snd . expand <$> runStatic s)

@@ -14,10 +14,10 @@ import Data.Tuple (swap)
 main :: IO ()
 main = do
   -- refs
-  firstName <- ref "first name" "John"
-  middleName <- ref "middle name" "Ferguson"
-  lastName <- ref "last name" "Doe"
-  tuple <- ref "tuple" (1, "2")
+  firstName <- ref "first name"
+  middleName <- ref "middle name"
+  lastName <- ref "last name"
+  tuple <- ref "tuple"
   let tupleSwapped = invmap swap swap tuple
   let fullName = firstName |&| middleName |&| lastName
 
@@ -34,10 +34,10 @@ main = do
   let writeFirstAndLastName = writeFirstName |&| writeLastName
   -- write to no ref
   let writeNull = null
-  -- write to chosen ref
-  let writeFirstOrLastName = writeFirstName ||| writeLastName
+  -- -- write to chosen ref
+  -- let writeFirstOrLastName = writeFirstName ||| writeLastName
   -- write to write that cannot be written
-  let writeUnwritable = never
+  let writeUnwritable = foo
 
   pressure <- topic "pressure"
   temperature <- topic "temperature"
@@ -46,26 +46,26 @@ main = do
   let fooSwapped = invmap swap swap foo
   let wheatherInfo = pressure ||| temperature ||| wind
 
-  write writeFirstName "Sam"
-  write writeFullName ("Paul", ("Adam", "Smith"))
-  write writeReversedFirstName "namweN"
-  write writeFirstAndLastName ("Henry", "Ford")
-  write writeNull "abc"
-  write writeFirstOrLastName (Right "Ford!")
-  write writeUnwritable undefined
+  writeEntity writeFirstName "Sam"
+  writeEntity writeFullName ("Paul", ("Adam", "Smith"))
+  writeEntity writeReversedFirstName "namweN"
+  writeEntity writeFirstAndLastName ("Henry", "Ford")
+  writeEntity writeNull "abc"
+  -- writeEntity writeFirstOrLastName (Right "Ford!")
+  writeEntity writeUnwritable undefined
 
   -- read primitive ref
-  read (readRef lastName) >>= print
+  readEntity (readRef lastName) >>= print
   -- read complex ref
-  read (readRef fullName) >>= print
+  readEntity (readRef fullName) >>= print
   -- fmap reading ref
-  read (take 3 <$> readRef lastName) >>= print
+  readEntity (take 3 <$> readRef lastName) >>= print
   -- compose reading all refs
-  read (readRef firstName |&| readRef lastName) >>= print
+  readEntity (readRef firstName |&| readRef lastName) >>= print
   -- read from IO
-  read (readIO "current time" getCurrentTime) >>= print
+  readEntity (readIO "current time" getCurrentTime) >>= print
   -- read constant
-  read (constant 5) >>= print
+  readEntity (constant 5) >>= print
 
   -- read primitive topic
   subscribe (subscribeTopic pressure) print
@@ -81,27 +81,27 @@ main = do
 
 
   -- write primitive topic
-  getLine; write (writeTopic pressure) 1001
-  getLine; write (writeTopic temperature) 23.5
-  getLine; write (writeTopic wind) 2.3
+  getLine; writeStream (writeTopic pressure) 1001
+  getLine; writeStream (writeTopic temperature) 23.5
+  getLine; writeStream (writeTopic wind) 2.3
   -- write complex topic
-  getLine; write (writeTopic wheatherInfo) (Right (Left 23.8))
+  getLine; writeStream (writeTopic wheatherInfo) (Right (Left 23.8))
   -- contramap writing topic
-  getLine; write ((+ 2) >$< writeTopic pressure) 999
+  getLine; writeStream ((+ 2) >$< writeTopic pressure) 999
   -- compose writing some topic
-  getLine; write (writeTopic pressure ||| writeTopic temperature) (Right 19)
-  -- compose writing all streams
-  getLine; write (writeTopic pressure |&| writeTopic temperature) (1021, 21)
+  getLine; writeStream (writeTopic pressure ||| writeTopic temperature) (Right 19)
+  -- -- compose writing all streams
+  -- getLine; writeStream (writeTopic pressure |&| writeTopic temperature) (1021, 21)
   -- write to null topic
-  getLine; write null 17
+  -- getLine; writeStream null 17
   -- filter topic
-  getLine; write (null ||| writeTopic temperature) (Right 19)
-  -- filter topic
-  getLine; write (writeTopic temperature ||| writeRef lastName) (Left 19)
-  -- write to topic or to ref
-  getLine; write (writeTopic temperature ||| writeRef firstName) (Left 19)
-  -- write to topic and to ref
-  getLine; write (writeTopic temperature |&| writeRef firstName) (19, "Ian")
+  -- getLine; writeStream (null ||| writeTopic temperature) (Right 19)
+  -- -- filter topic
+  -- getLine; writeStream (writeTopic temperature ||| writeRef lastName) (Left 19)
+  -- -- write to topic or to ref
+  -- getLine; writeStream (writeTopic temperature ||| writeRef firstName) (Left 19)
+  -- -- write to topic and to ref
+  -- getLine; writeStream (writeTopic temperature |&| writeRef firstName) (19, "Ian")
 
   -- wait for propagation
   threadDelay 1000000
