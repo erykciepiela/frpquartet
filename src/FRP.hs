@@ -39,15 +39,6 @@ data Ref a = Ref
   , readRef  :: FRP ReadEntity a
   }
 
-instance CollapseP2P Ref where
-  nothing = Ref
-    { writeRef = nothing
-    , readRef = nothing
-    }
-  ea |&| eb = Ref
-    { writeRef = writeRef ea |&| writeRef eb
-    , readRef = readRef ea |&| readRef eb
-    }
 instance ExpandS2P Ref where
   expand r = (Ref
     { writeRef = fst . expand $ writeRef r
@@ -57,6 +48,16 @@ instance ExpandS2P Ref where
     , readRef = snd . expand $ readRef r
     })
 
+instance CollapseP2P Ref where
+  nothing = Ref
+    { writeRef = nothing
+    , readRef = nothing
+    }
+  ea |&| eb = Ref
+    { writeRef = writeRef ea |&| writeRef eb
+    , readRef = readRef ea |&| readRef eb
+    }
+
 instance Invariant Ref where
   invmap f g ref = Ref
     { writeRef = g >$< writeRef ref
@@ -64,6 +65,7 @@ instance Invariant Ref where
     }
 
 -- | Topic instatiates CollapseP2S, ExpandS2P
+-- i.e. never :: Topic Void
 -- i.e. ||| :: Topic a -> Topic b -> Topic (Either a b)
 -- i.e. expand :: Topic (Either a b) -> (Topic a, Topic b)
 -- Topic does not instantiate Functor nor Contravariant, it's Invariant
@@ -71,6 +73,15 @@ data Topic a = Topic
   { writeTopic :: FRP WriteStream a
   , subscribeTopic  :: FRP SubscribeStream a
   }
+
+instance ExpandS2P Topic where
+  expand t = (Topic
+    { writeTopic = fst . expand $ writeTopic t
+    , subscribeTopic = fst . expand $ subscribeTopic t
+    }, Topic
+    { writeTopic = snd . expand $ writeTopic t
+    , subscribeTopic = snd . expand $ subscribeTopic t
+    })
 
 instance CollapseP2S Topic where
   never = Topic
@@ -81,15 +92,6 @@ instance CollapseP2S Topic where
     { writeTopic = writeTopic ea ||| writeTopic eb
     , subscribeTopic = subscribeTopic ea ||| subscribeTopic eb
     }
-
-instance ExpandS2P Topic where
-  expand t = (Topic
-    { writeTopic = fst . expand $ writeTopic t
-    , subscribeTopic = fst . expand $ subscribeTopic t
-    }, Topic
-    { writeTopic = snd . expand $ writeTopic t
-    , subscribeTopic = snd . expand $ subscribeTopic t
-    })
 
 instance Invariant Topic where
   invmap f g topic = Topic
@@ -220,8 +222,8 @@ _nothingRef = nothing
 _nothingReadEntity :: ReadEntity ()
 _nothingReadEntity = nothing
 
-_nothingWrite :: WriteEntity ()
-_nothingWrite = nothing
+_nothingWriteEntity :: WriteEntity ()
+_nothingWriteEntity = nothing
 
 _constantReadEntity :: a -> ReadEntity a
 _constantReadEntity = constant
@@ -229,19 +231,11 @@ _constantReadEntity = constant
 _nullWriteEntity :: WriteEntity a
 _nullWriteEntity = null
 
-_nullWriteStream :: WriteEntity a
-_nullWriteStream = null
-
 _neverTopic :: Topic Void
 _neverTopic = never
 
-_neverReadStream :: SubscribeStream Void
-_neverReadStream = never
+_neverWriteStream :: WriteStream Void
+_neverWriteStream = never
 
-_emptyReadStream :: SubscribeStream a
-_emptyReadStream = empty
-
--- you cannot create ad-hoc arbitrary contravariant CollapseP2S
--- if you need to create ad-hoc arbitrary contravariant you have to use CollapseP2P and @null@
-_nullP2S :: (Contravariant f, CollapseP2S f) => (a -> Void) -> f a
-_nullP2S f = f >$< never
+_emptySubscribeStream :: SubscribeStream a
+_emptySubscribeStream = empty
