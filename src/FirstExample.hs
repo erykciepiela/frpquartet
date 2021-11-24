@@ -87,22 +87,22 @@ app person wheatherInfo = do
 
   --
   let subscribeWheatherInfo = subscribeTopic wheatherInfo
-  subscribe subscribeWheatherInfo print
+  subscribeStream subscribeWheatherInfo print
 
   let subscribePressure = fst $ expand subscribeWheatherInfo
-  subscribe subscribePressure print
+  subscribeStream subscribePressure print
 
   let subscribeTemperature = snd $ expand subscribeWheatherInfo
-  subscribe subscribeTemperature print
+  subscribeStream subscribeTemperature print
 
   let subscribeAdjustedPressure = (+ 10) <$> subscribePressure
-  subscribe subscribeAdjustedPressure print
+  subscribeStream subscribeAdjustedPressure print
 
   let subscribePressureAndTemperature = subscribePressure ||| subscribeTemperature
-  subscribe subscribePressureAndTemperature print
+  subscribeStream subscribePressureAndTemperature print
 
   let subscribeEmpty = empty @Int
-  subscribe subscribeEmpty print
+  subscribeStream subscribeEmpty print
 
   let writeWhetherInfo = writeTopic wheatherInfo
 

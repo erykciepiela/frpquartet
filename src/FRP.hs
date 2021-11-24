@@ -10,7 +10,7 @@ module FRP
   , SubscribeStream (..)
   , readEntity
   , writeEntity
-  , subscribe
+  , subscribeStream
   , writeStream
   , FRP.readIO
   ) where
@@ -205,8 +205,8 @@ readEntity siea = let (doReadEntity, meta) = (runIdentity . runWriterT . runStat
               print meta
               runReadEntity doReadEntity
 
-subscribe :: FRP SubscribeStream a -> (a -> IO ()) -> IO ()
-subscribe siea callback = let (doReadStream, meta) = (runIdentity . runWriterT . runStatic) siea
+subscribeStream :: FRP SubscribeStream a -> (a -> IO ()) -> IO ()
+subscribeStream siea callback = let (doReadStream, meta) = (runIdentity . runWriterT . runStatic) siea
             in do
               print meta
               runSubscibeStream doReadStream callback
