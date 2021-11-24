@@ -1,11 +1,11 @@
 {-# LANGUAGE RankNTypes #-}
 module Quartet
-  ( CollapseP2P (nothing, (|&|))
+  ( ExpandS2P (expand)
+  , CollapseP2P (nothing, (|&|))
   , constant
   , null
   , CollapseP2S (never, (|||))
   , empty
-  , ExpandS2P (foo, expand)
   , Static (..)
   ) where
 
@@ -13,20 +13,27 @@ import           Data.Functor.Contravariant
 import           Data.Void
 import           Prelude                    hiding (null)
 
+
+-- | Notice no @Functor f@ nor @Contravariant f@ constraint
+class ExpandS2P f where
+  expand :: f (Either a b) -> (f a, f b)
+
 -- | Notice no @Functor f@ nor @Contravariant f@ constraint
 -- laws:
--- u |&| nothing ~= u
--- nothing |&| u ~= u
--- (u |&| w) |&| z ~= u |&| (w |&| z)
+--   u |&| nothing ~= u
+--   nothing |&| u ~= u
+--   (u |&| w) |&| z ~= u |&| (w |&| z)
+-- additionally if @ExpandS2P f@ then:
+--   |&| . expand = nothing
 class CollapseP2P f where
   nothing :: f ()
   (|&|) :: f a -> f b -> f (a, b)
   infixr 1 |&|
 
-constant :: (Functor f, CollapseP2P f) => a -> f a
+constant :: forall a f . (Functor f, CollapseP2P f) => a -> f a -- @forall@ for convenient use of TypeApplications extension
 constant a = a <$ nothing
 
-null :: (Contravariant f, CollapseP2P f) => f a
+null :: forall a f . (Contravariant f, CollapseP2P f) => f a -- @forall@ for convenient use of TypeApplications extension
 null = () >$ nothing
 
 -- this requies {-# LANGUAGE FlexibleInstances #-} and {-# LANGUAGE UndecidableInstances #-}
@@ -34,26 +41,20 @@ null = () >$ nothing
 --   pure = constant
 --   ref <*> rea = (\(f, a) -> f a) <$> (ref |&| rea)
 
-
 -- | Notice no @Functor f@ nor @Contravariant f@ constraint
--- | laws:
--- | u ||| never ~= u
--- | never ||| u ~= u
--- | (u ||| w) ||| z ~= u ||| (w ||| z)
+-- laws:
+--   u ||| never ~= u
+--   never ||| u ~= u
+--   (u ||| w) ||| z ~= u ||| (w ||| z)
+-- additionally if @ExpandS2P f@ then:
+--   ||| . expand = id
 class CollapseP2S f where
   never :: f Void
   (|||) :: f a -> f b -> f (Either a b)
   infixr 1 |||
 
-empty :: forall a f . (Functor f, CollapseP2S f) => f a -- @forall@ for more convenient use of TypeApplications extension
+empty :: forall a f . (Functor f, CollapseP2S f) => f a -- @forall@ for convenient use of TypeApplications extension
 empty = absurd <$> never
-
-class ExpandS2P f where
-  foo :: f Void
-  expand :: f (Either a b) -> (f a, f b)
-
-empty' :: (ExpandS2P f, Functor f) => f a
-empty' = absurd <$> foo
 
 --
 
@@ -78,5 +79,4 @@ instance (CollapseP2S p, Applicative f) => CollapseP2S (Static f p) where
   sa ||| sb = Static $ (|||) <$> runStatic sa <*> runStatic sb
 
 instance (ExpandS2P p, Applicative f) => ExpandS2P (Static f p) where
-  foo = Static $ pure foo
   expand s = (Static $ fst . expand <$> runStatic s, Static $ snd . expand <$> runStatic s)

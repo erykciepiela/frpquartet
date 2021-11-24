@@ -53,9 +53,6 @@ app person wheatherInfo = do
   let writeNull = null
   getLine; writeEntity writeNull 12
 
-  let writeUnwritable = foo
-  getLine; writeEntity writeUnwritable undefined
-
   let readPerson = readRef person
   getLine; readEntity readPerson >>= print
 

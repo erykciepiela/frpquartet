@@ -30,6 +30,7 @@ import Data.Functor.Invariant (Invariant (invmap))
 type FRP = Static (WriterT [String] Identity)
 
 -- | Ref instantiates CollapseP2P, ExpandS2P
+-- i.e. nothing :: Ref ()
 -- i.e. |&| :: Ref a -> Ref b -> Ref (a, b)
 -- i.e. expand :: Ref (Either a b) -> (Ref a, Ref b)
 -- Ref does not instantiate Functor nor Contravariant it's Invariant.
@@ -48,10 +49,6 @@ instance CollapseP2P Ref where
     , readRef = readRef ea |&| readRef eb
     }
 instance ExpandS2P Ref where
-  foo = Ref
-    { writeRef = foo
-    , readRef = foo
-    }
   expand r = (Ref
     { writeRef = fst . expand $ writeRef r
     , readRef = fst . expand $ readRef r
@@ -77,7 +74,7 @@ data Topic a = Topic
 
 instance CollapseP2S Topic where
   never = Topic
-    { writeTopic = foo
+    { writeTopic = never
     , subscribeTopic = never
     }
   ea ||| eb = Topic
@@ -86,10 +83,6 @@ instance CollapseP2S Topic where
     }
 
 instance ExpandS2P Topic where
-  foo = Topic
-    { writeTopic = foo
-    , subscribeTopic = foo
-    }
   expand t = (Topic
     { writeTopic = fst . expand $ writeTopic t
     , subscribeTopic = fst . expand $ subscribeTopic t
@@ -114,7 +107,6 @@ instance CollapseP2P WriteEntity where
     runWriteEntity isb b
 
 instance ExpandS2P WriteEntity where
-  foo = WriteEntity $ \_ -> return ()
   expand w = (WriteEntity $ runWriteEntity w . Left, WriteEntity $ runWriteEntity w . Right)
 
 instance Contravariant WriteEntity where
@@ -128,7 +120,6 @@ instance CollapseP2S WriteStream where
   isa ||| isb = WriteStream $ either (runWriteStream isa) (runWriteStream isb)
 
 instance ExpandS2P WriteStream where
-  foo = WriteStream $ \_ -> return ()
   expand w = (WriteStream $ runWriteStream w . Left, WriteStream $ runWriteStream w . Right)
 
 instance Contravariant WriteStream where
@@ -142,7 +133,6 @@ instance CollapseP2P ReadEntity where
   oea |&| oeb = ReadEntity $ (\ma mb -> (,) <$> ma <*> mb) <$> runReadEntity oea <*> runReadEntity oeb
 
 instance ExpandS2P ReadEntity where
-  foo = ReadEntity $ return Nothing
   expand re = (ReadEntity $ maybe Nothing (either Just (const Nothing)) <$> runReadEntity re, ReadEntity $ maybe Nothing (either (const Nothing) Just) <$> runReadEntity re)
 
 instance Functor ReadEntity where
@@ -162,7 +152,6 @@ instance CollapseP2S SubscribeStream where
     runSubscibeStream osb $ aorb2io . Right
 
 instance ExpandS2P SubscribeStream where
-  foo = SubscribeStream $ \_ -> return ()
   expand ss = (SubscribeStream $ \a2io -> runSubscibeStream ss $ \aorb -> either a2io (const (return ())) aorb, SubscribeStream $ \b2io -> runSubscibeStream ss $ \aorb -> either (const (return ())) b2io aorb)
 
 instance Functor SubscribeStream where
@@ -220,6 +209,9 @@ subscribe siea callback = let (doReadStream, meta) = (runIdentity . runWriterT .
               print meta
               runSubscibeStream doReadStream callback
 
+connect :: SubscribeStream a -> WriteEntity a -> IO ()
+connect subscribeStream writeEntity = runSubscibeStream subscribeStream (runWriteEntity writeEntity)
+
 -- last but not least, things for free (these functions are not exported, it's just for documentation)
 
 _nothingRef :: Ref ()
@@ -245,9 +237,6 @@ _neverTopic = never
 
 _neverReadStream :: SubscribeStream Void
 _neverReadStream = never
-
-_neverWrite :: WriteEntity Void
-_neverWrite = foo
 
 _emptyReadStream :: SubscribeStream a
 _emptyReadStream = empty
