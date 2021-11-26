@@ -15,17 +15,17 @@ module FRP
   , FRP.readIO
   ) where
 
-import Quartet
-import Prelude hiding (null)
-import Data.Functor.Contravariant
-import Data.Void
-import Control.Monad.Writer
-import Control.Monad.Identity
-import Data.IORef
-import Data.Foldable (for_)
-import Control.Concurrent.MVar
-import Control.Concurrent
-import Data.Functor.Invariant (Invariant (invmap))
+import           Control.Concurrent
+import           Control.Concurrent.MVar
+import           Control.Monad.Identity
+import           Control.Monad.Writer
+import           Data.Foldable              (for_)
+import           Data.Functor.Contravariant
+import           Data.Functor.Invariant     (Invariant (invmap))
+import           Data.IORef
+import           Data.Void
+import           Prelude                    hiding (null)
+import           Quartet
 
 type FRP = Static (WriterT [String] Identity)
 
@@ -70,8 +70,8 @@ instance Invariant Ref where
 -- i.e. expand :: Topic (Either a b) -> (Topic a, Topic b)
 -- Topic does not instantiate Functor nor Contravariant, it's Invariant
 data Topic a = Topic
-  { writeTopic :: FRP WriteStream a
-  , subscribeTopic  :: FRP SubscribeStream a
+  { writeTopic     :: FRP WriteStream a
+  , subscribeTopic :: FRP SubscribeStream a
   }
 
 instance ExpandS2P Topic where
