@@ -10,6 +10,7 @@ module Quartet
   ) where
 
 import           Data.Functor.Contravariant
+import           Data.Functor.Invariant     (Invariant (..))
 import           Data.Void
 import           Prelude                    hiding (null)
 
@@ -59,6 +60,9 @@ empty = absurd <$> never
 --
 
 newtype Static f p a = Static { runStatic :: f (p a) }
+
+instance (Invariant p, Applicative f) => Invariant (Static f p) where
+  invmap f g s = Static $ invmap f g <$> runStatic s
 
 instance (Functor p, Applicative f) => Functor (Static f p) where
   fmap f s = Static $ fmap f <$> runStatic s

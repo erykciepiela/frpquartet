@@ -60,8 +60,8 @@ instance CollapseP2P Ref where
 
 instance Invariant Ref where
   invmap f g ref = Ref
-    { writeRef = g >$< writeRef ref
-    , readRef = f <$> readRef ref
+    { writeRef = invmap f g $ writeRef ref
+    , readRef = invmap f g $ readRef ref
     }
 
 -- | Topic instatiates CollapseP2S, ExpandS2P
@@ -95,8 +95,8 @@ instance CollapseP2S Topic where
 
 instance Invariant Topic where
   invmap f g topic = Topic
-    { writeTopic = g >$< writeTopic topic
-    , subscribeTopic = f <$> subscribeTopic topic
+    { writeTopic = invmap f g $ writeTopic topic
+    , subscribeTopic = invmap f g $ subscribeTopic topic
     }
 
 -- | WriteEntity instantiates CollapseP2P, ExpandS2P and Contravariant
