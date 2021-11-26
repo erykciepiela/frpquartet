@@ -10,7 +10,7 @@ module Quartet
   ) where
 
 import           Data.Functor.Contravariant
-import           Data.Functor.Invariant     (Invariant (..))
+import           Data.Functor.Invariant
 import           Data.Void
 import           Prelude                    hiding (null)
 

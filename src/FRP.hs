@@ -21,7 +21,7 @@ import           Control.Monad.Identity
 import           Control.Monad.Writer
 import           Data.Foldable              (for_)
 import           Data.Functor.Contravariant
-import           Data.Functor.Invariant     (Invariant (invmap))
+import           Data.Functor.Invariant
 import           Data.IORef
 import           Data.Void
 import           Prelude                    hiding (null)
