@@ -111,6 +111,9 @@ instance CollapseP2P WriteEntity where
 instance ExpandS2P WriteEntity where
   expand w = (WriteEntity $ runWriteEntity w . Left, WriteEntity $ runWriteEntity w . Right)
 
+instance Invariant WriteEntity where
+  invmap _ = contramap
+
 instance Contravariant WriteEntity where
   contramap f is = WriteEntity $ runWriteEntity is . f
 
@@ -124,6 +127,10 @@ instance CollapseP2S WriteStream where
 instance ExpandS2P WriteStream where
   expand w = (WriteStream $ runWriteStream w . Left, WriteStream $ runWriteStream w . Right)
 
+
+instance Invariant WriteStream where
+  invmap _ = contramap
+
 instance Contravariant WriteStream where
   contramap f is = WriteStream $ runWriteStream is . f
 
@@ -136,6 +143,9 @@ instance CollapseP2P ReadEntity where
 
 instance ExpandS2P ReadEntity where
   expand re = (ReadEntity $ maybe Nothing (either Just (const Nothing)) <$> runReadEntity re, ReadEntity $ maybe Nothing (either (const Nothing) Just) <$> runReadEntity re)
+
+instance Invariant ReadEntity where
+  invmap f _ readEntity = fmap f readEntity
 
 instance Functor ReadEntity where
   fmap f oe = ReadEntity $ fmap f <$> runReadEntity oe
@@ -158,6 +168,9 @@ instance ExpandS2P SubscribeStream where
 
 instance Functor SubscribeStream where
   fmap f os = SubscribeStream $ \b2io -> runSubscibeStream os (b2io . f)
+
+instance Invariant SubscribeStream where
+  invmap f _ subscribeStream = fmap f subscribeStream
 
 --
 
