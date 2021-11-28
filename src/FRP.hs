@@ -2,25 +2,25 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
 module FRP
-  ( Ref (..)
+  ( FRP
+  , Ref
+  , Topic
+  , ReadEntity
+  , WriteEntity
+  , WriteStream
+  , SubscribeStream
   , ref
-  , Topic (..)
   , topic
-  , ReadEntity (..)
-  , WriteEntity (..)
-  , WriteStream (..)
-  , SubscribeStream (..)
-  , readEntity
-  , writeEntity
-  , subscribeStream
-  , writeStream
-  -- , FRP.readIO
-  , FRP'
   , writeRef'
   , readRef'
   , subscribeTopic'
   , writeTopic'
-  , foo
+  -- runtime
+  , runFRP
+  , writeEntity
+  , readEntity
+  , subscribeStream
+  , writeStream
   ) where
 
 import           Control.Concurrent
@@ -48,10 +48,10 @@ instance Show FRPState where
   show = const "FRPState"
 
 
-type FRP' f a = Static (StateT FRPState IO) f a
+type FRP f a = Static (StateT FRPState IO) f a
 
-foo :: StateT FRPState IO a -> IO a
-foo statet = do
+runFRP :: StateT FRPState IO a -> IO a
+runFRP statet = do
   (a, state) <- runStateT statet emptyFRPState
   print state
   return a
@@ -61,8 +61,8 @@ foo statet = do
       { topics = mempty
       , refs = mempty}
 
-type FRP = Static (WriterT [String] Identity)
-
+initFRP :: FRP p a -> StateT FRPState IO (p a)
+initFRP = runStatic
 
 -- | Ref instantiates CollapseP2P, ExpandS2P
 -- i.e. nothing :: Ref ()
@@ -105,8 +105,8 @@ instance Invariant Ref where
 -- i.e. expand :: Topic (Either a b) -> (Topic a, Topic b)
 -- Topic does not instantiate Functor nor Contravariant, it's Invariant
 data Topic a = Topic
-  { writeTopic     :: FRP WriteStream a
-  , subscribeTopic :: FRP SubscribeStream a
+  { writeTopic     :: WriteStream a
+  , subscribeTopic :: SubscribeStream a
   }
 
 instance ExpandS2P Topic where
@@ -209,7 +209,7 @@ instance Invariant SubscribeStream where
 
 --
 
-ref :: Typeable a => String -> FRP' Ref a
+ref :: Typeable a => String -> FRP Ref a
 ref name = Static $ StateT $ \state -> case Data.Map.lookup name (refs state) of
   Nothing -> do
     ioref <- newIORef Nothing
@@ -220,45 +220,21 @@ ref name = Static $ StateT $ \state -> case Data.Map.lookup name (refs state) of
     return (ref, state { refs = insert name (toDyn ref) (refs state) })
   Just d -> return (fromDyn d undefined, state)
 
-topic :: Typeable a => String -> FRP' Topic a
+topic :: Typeable a => String -> FRP Topic a
 topic name = Static $ StateT $ \state -> case Data.Map.lookup name (topics state) of
   Nothing -> do
     mvarsRef <- newIORef []
     let topic = Topic
-          { writeTopic = Static $ WriterT $ Identity (WriteStream $ \a -> do
+          { writeTopic = WriteStream $ \a -> do
               mvars <- readIORef mvarsRef
-              for_ mvars $ \mvar -> putMVar mvar a, [name])
-          , subscribeTopic = Static $ WriterT $ Identity (SubscribeStream $ \action -> do
+              for_ mvars $ \mvar -> putMVar mvar a
+          , subscribeTopic = SubscribeStream $ \action -> do
               mvar <- newEmptyMVar
               modifyIORef mvarsRef (mvar:)
-              void $ forkIO $ forever $ takeMVar mvar >>= action, [name])
+              void $ forkIO $ forever $ takeMVar mvar >>= action
           }
     return (topic, state { topics = insert name (toDyn topic) (topics state)})
   Just d -> return (fromDyn d undefined, state)
-
-writeEntity :: FRP WriteEntity a -> Maybe a -> IO ()
-writeEntity siea a = let (doWriteEntity, meta) = (runIdentity . runWriterT . runStatic) siea
-                in do
-                  print meta
-                  runWriteEntity doWriteEntity a
-
-writeStream :: FRP WriteStream a -> a -> IO ()
-writeStream siea a = let (doWriteStream, meta) = (runIdentity . runWriterT . runStatic) siea
-                in do
-                  print meta
-                  runWriteStream doWriteStream a
-
-readEntity :: FRP ReadEntity a -> IO (Maybe a)
-readEntity siea = let (doReadEntity, meta) = (runIdentity . runWriterT . runStatic) siea
-            in do
-              print meta
-              runReadEntity doReadEntity
-
-subscribeStream :: FRP SubscribeStream a -> (a -> IO ()) -> IO ()
-subscribeStream siea callback = let (doReadStream, meta) = (runIdentity . runWriterT . runStatic) siea
-            in do
-              print meta
-              runSubscibeStream doReadStream callback
 
 connect :: SubscribeStream a -> WriteEntity a -> IO ()
 connect subscribeStream writeEntity = runSubscibeStream subscribeStream (runWriteEntity writeEntity . Just)
@@ -291,15 +267,36 @@ _emptySubscribeStream = empty
 
 --
 
-writeRef' :: FRP' Ref a -> FRP' WriteEntity a
+writeRef' :: FRP Ref a -> FRP WriteEntity a
 writeRef' r = Static $ writeRef <$> runStatic r
 
-readRef' :: FRP' Ref a -> FRP' ReadEntity a
+readRef' :: FRP Ref a -> FRP ReadEntity a
 readRef' r = Static $ readRef <$> runStatic r
 
 
-subscribeTopic' :: FRP' Topic a -> FRP' SubscribeStream a
-subscribeTopic' = undefined
+subscribeTopic' :: FRP Topic a -> FRP SubscribeStream a
+subscribeTopic' t = Static $ subscribeTopic <$> runStatic t
 
-writeTopic' :: FRP' Topic a -> FRP' WriteStream a
-writeTopic' = undefined
+writeTopic' :: FRP Topic a -> FRP WriteStream a
+writeTopic' t = Static $ writeTopic <$> runStatic t
+
+
+writeEntity :: FRP WriteEntity a -> Maybe a -> StateT FRPState IO ()
+writeEntity writeEntity ma = do
+  we <- initFRP writeEntity
+  liftIO $ runWriteEntity we ma
+
+readEntity :: FRP ReadEntity a -> StateT FRPState IO (Maybe a)
+readEntity readEntity = do
+  re <- initFRP readEntity
+  liftIO $ runReadEntity re
+
+subscribeStream :: FRP SubscribeStream a -> (a -> IO ()) -> StateT FRPState IO ()
+subscribeStream subscribeStream action = do
+  ss <- initFRP subscribeStream
+  liftIO $ runSubscibeStream ss action
+
+writeStream :: FRP WriteStream a -> a -> StateT FRPState IO ()
+writeStream writeStream a = do
+  ws <- initFRP writeStream
+  liftIO $ runWriteStream ws a

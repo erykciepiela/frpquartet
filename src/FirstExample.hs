@@ -1,17 +1,13 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module FirstExample where
+import Prelude hiding (read, null, readIO)
 
 import Quartet
 import FRP
 import Data.Functor.Contravariant
 import Control.Concurrent
-import Control.Monad.Identity (Identity(runIdentity), join)
-import Data.Time (getCurrentTime)
-import Prelude hiding (read, null, readIO)
-import Data.Functor.Invariant (Invariant(invmap))
-import Data.Tuple (swap)
-import Control.Monad.State (StateT(runStateT))
+import Control.Monad.IO.Class (MonadIO(liftIO))
 
 type FirstName = String
 type LastName = String
@@ -22,115 +18,102 @@ type Pressure = Int
 type Wind = Float
 
 
-firstName :: FRP' Ref FirstName
+firstName :: FRP Ref FirstName
 firstName = ref "first name"
 
-lastName :: FRP' Ref LastName
+lastName :: FRP Ref LastName
 lastName = ref "last name"
 
-location :: FRP' Ref (Either Address Coords)
+location :: FRP Ref (Either Address Coords)
 location = ref "location"
 
-pressure :: FRP' Topic Pressure
+pressure :: FRP Topic Pressure
 pressure = topic "pressure"
 
-temperature :: FRP' Topic Temperature
+temperature :: FRP Topic Temperature
 temperature = topic "temperature"
 
-wind :: FRP' Topic Wind
+wind :: FRP Topic Wind
 wind = topic "wind"
 
-person :: FRP' Ref (FirstName, (LastName, Either Address Coords))
+person :: FRP Ref (FirstName, (LastName, Either Address Coords))
 person = firstName |&| lastName |&| location
 
-writePerson :: FRP' WriteEntity (FirstName, (LastName, Either Address Coords))
+writePerson :: FRP WriteEntity (FirstName, (LastName, Either Address Coords))
 writePerson = writeRef' $ firstName |&| lastName |&| location
 
-writeReversedFirstName :: FRP' WriteEntity a
+writeReversedFirstName :: FRP WriteEntity a
 writeReversedFirstName = undefined >$< writePerson -- TODO
 
-readPerson :: FRP' ReadEntity (FirstName, (LastName, Either Address Coords))
+readPerson :: FRP ReadEntity (FirstName, (LastName, Either Address Coords))
 readPerson = readRef' $ firstName |&| lastName |&| location
 
-readFirstName :: FRP' ReadEntity FirstName
+readFirstName :: FRP ReadEntity FirstName
 readFirstName = readRef' firstName
 
-readLastName :: FRP' ReadEntity LastName
+readLastName :: FRP ReadEntity LastName
 readLastName = readRef' lastName
 
-readFirstAndLastName :: FRP' ReadEntity (FirstName, LastName)
+readFirstAndLastName :: FRP ReadEntity (FirstName, LastName)
 readFirstAndLastName = (,) <$> readFirstName <*> readLastName
 
-readAddress :: FRP' ReadEntity Address
+readAddress :: FRP ReadEntity Address
 readAddress = fst $ expand $ readRef' location
 
-readCoords :: FRP' ReadEntity Coords
+readCoords :: FRP ReadEntity Coords
 readCoords = snd $ expand $ readRef' location
 
-readFive :: FRP' ReadEntity Int
+readFive :: FRP ReadEntity Int
 readFive = constant 5
 
-subscribeWheatherInfo :: FRP' SubscribeStream (Either Pressure (Either Temperature Wind))
+subscribeWheatherInfo :: FRP SubscribeStream (Either Pressure (Either Temperature Wind))
 subscribeWheatherInfo = subscribeTopic' $ pressure ||| temperature ||| wind
 
-subscribePressure :: FRP' SubscribeStream Pressure
+subscribePressure :: FRP SubscribeStream Pressure
 subscribePressure = subscribeTopic' pressure
 
-subscribeTemperature :: FRP' SubscribeStream Temperature
+subscribeTemperature :: FRP SubscribeStream Temperature
 subscribeTemperature = subscribeTopic' temperature
 
-subscribeAdjustedPressure :: FRP' SubscribeStream Pressure
+subscribeAdjustedPressure :: FRP SubscribeStream Pressure
 subscribeAdjustedPressure = (+ 10) <$> subscribePressure
 
-subscribePressureAndTemperature :: FRP' SubscribeStream (Either Pressure Temperature)
+subscribePressureAndTemperature :: FRP SubscribeStream (Either Pressure Temperature)
 subscribePressureAndTemperature = subscribePressure ||| subscribeTemperature
 
-subscribeEmpty :: FRP' SubscribeStream Int
+subscribeEmpty :: FRP SubscribeStream Int
 subscribeEmpty = empty @Int
 
-writeWhetherInfo :: FRP' WriteStream (Either Pressure (Either Temperature Wind))
+writeWhetherInfo :: FRP WriteStream (Either Pressure (Either Temperature Wind))
 writeWhetherInfo = writeTopic' $ pressure ||| temperature ||| wind
 
-writePressure :: FRP' WriteStream Pressure
+writePressure :: FRP WriteStream Pressure
 writePressure = writeTopic' pressure
 
-writeAdjustedPressure :: FRP' WriteStream Pressure
+writeAdjustedPressure :: FRP WriteStream Pressure
 writeAdjustedPressure = (+ 10) >$< writePressure
 
-writeTemeprature :: FRP' WriteStream Temperature
+writeTemeprature :: FRP WriteStream Temperature
 writeTemeprature = writeTopic' temperature
 
-writeWind :: FRP' WriteStream Wind
+writeWind :: FRP WriteStream Wind
 writeWind = writeTopic' wind
 
 main :: IO ()
-main = do
-
-  (writePerson, readPerson , readFirstName, readLastName) <- foo $ do
-    wp <- runStatic writePerson
-    rp <- runStatic readPerson
-    readFirstName <- runStatic readFirstName
-    readLastName <- runStatic readLastName
-    return (wp, rp, readFirstName, readLastName)
-
-  getLine; runWriteEntity writePerson $ Just ("Paul", ("Smith", Right "50N20E"))
-  getLine; runReadEntity readFirstName >>= print
-  getLine; runReadEntity readLastName >>= print
-  -- getLine; runReadEntity readLastName >>= print
-  -- getLine; runReadEntity readAddress >>= print
-  -- getLine; runReadEntity readCoords >>= print
-
-  -- subscribeStream subscribeWheatherInfo print
-  -- subscribeStream subscribePressure print
-  -- subscribeStream subscribeTemperature print
-  -- subscribeStream subscribeAdjustedPressure print
-  -- subscribeStream subscribePressureAndTemperature print
-
-  -- getLine; writeStream writePressure 1002
-  -- getLine; writeStream writePressure 1002
-  -- getLine; writeStream writeTemeprature 23.8
-  -- getLine; writeStream writeWind 23.8
-
+main = runFRP $ do
+  writeEntity writePerson (Just ("Paul", ("Smith", Right "50N20E")))
+  readEntity readFirstName >>= liftIO . print
+  readEntity readLastName >>= liftIO . print
+  readEntity readAddress >>= liftIO . print
+  readEntity readCoords >>= liftIO . print
+  subscribeStream subscribeWheatherInfo print
+  subscribeStream subscribePressure print
+  subscribeStream subscribeTemperature print
+  subscribeStream subscribeAdjustedPressure print
+  subscribeStream subscribePressureAndTemperature print
+  liftIO getLine; writeStream writePressure 1002
+  liftIO getLine; writeStream writeTemeprature 23.8
+  liftIO getLine; writeStream writeWind 23.8
   -- wait for propagation
-  threadDelay 1000000
+  liftIO $ threadDelay 1000000
   return ()
