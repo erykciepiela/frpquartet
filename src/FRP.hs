@@ -100,22 +100,22 @@ instance Invariant Topic where
     }
 
 -- | WriteEntity instantiates CollapseP2P, ExpandS2P and Contravariant
-newtype WriteEntity a = WriteEntity { runWriteEntity :: a -> IO () }
+newtype WriteEntity a = WriteEntity { runWriteEntity :: Maybe a -> IO () }
 
 instance CollapseP2P WriteEntity where
   nothing = WriteEntity $ \_ -> return ()
-  isa |&| isb = WriteEntity $ \(a, b) -> do
-    runWriteEntity isa a
-    runWriteEntity isb b
+  isa |&| isb = WriteEntity $ \mab -> do
+    runWriteEntity isa (fst <$> mab)
+    runWriteEntity isb (snd <$> mab)
 
 instance ExpandS2P WriteEntity where
-  expand w = (WriteEntity $ runWriteEntity w . Left, WriteEntity $ runWriteEntity w . Right)
+  expand w = (WriteEntity $ runWriteEntity w . fmap Left, WriteEntity $ runWriteEntity w . fmap Right)
 
 instance Invariant WriteEntity where
   invmap _ = contramap
 
 instance Contravariant WriteEntity where
-  contramap f is = WriteEntity $ runWriteEntity is . f
+  contramap f is = WriteEntity $ runWriteEntity is . fmap f
 
 -- | WriteStream instantiates CollapseP2S, ExpandS2P and Contravariant
 newtype WriteStream a = WriteStream { runWriteStream :: a -> IO () }
@@ -178,7 +178,7 @@ ref :: String -> IO (Ref a)
 ref name = do
   ref <- newIORef Nothing
   return $ Ref
-    { writeRef = Static $ WriterT $ Identity (WriteEntity $ writeIORef ref . Just, [name])
+    { writeRef = Static $ WriterT $ Identity (WriteEntity $ writeIORef ref, [name])
     , readRef = Static $ WriterT $ Identity (ReadEntity $ readIORef ref, [name])
     }
 
@@ -200,7 +200,7 @@ topic name = do
         void $ forkIO $ forever $ takeMVar mvar >>= action, [name])
     }
 
-writeEntity :: FRP WriteEntity a -> a -> IO ()
+writeEntity :: FRP WriteEntity a -> Maybe a -> IO ()
 writeEntity siea a = let (doWriteEntity, meta) = (runIdentity . runWriterT . runStatic) siea
                 in do
                   print meta
@@ -225,7 +225,7 @@ subscribeStream siea callback = let (doReadStream, meta) = (runIdentity . runWri
               runSubscibeStream doReadStream callback
 
 connect :: SubscribeStream a -> WriteEntity a -> IO ()
-connect subscribeStream writeEntity = runSubscibeStream subscribeStream (runWriteEntity writeEntity)
+connect subscribeStream writeEntity = runSubscibeStream subscribeStream (runWriteEntity writeEntity . Just)
 
 -- last but not least, things for free (these functions are not exported, it's just for documentation)
 

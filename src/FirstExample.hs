@@ -46,12 +46,12 @@ app :: Ref (FirstName, (LastName, Either Address Coords)) -> Topic (Either Press
 app person wheatherInfo = do
 
   let writePerson = writeRef person
-  getLine; writeEntity writePerson ("Paul", ("Smith", Right "50N20E"))
+  getLine; writeEntity writePerson $ Just ("Paul", ("Smith", Right "50N20E"))
 
   let writeReversedFirstName = undefined >$< writePerson -- TODO
 
   let writeNull = null
-  getLine; writeEntity writeNull 12
+  getLine; writeEntity writeNull $ Just 12
 
   let readPerson = readRef person
   getLine; readEntity readPerson >>= print
