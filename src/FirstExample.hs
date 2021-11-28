@@ -106,14 +106,16 @@ writeWind = writeTopic' wind
 main :: IO ()
 main = do
 
-  (writePerson, readPerson , readFirstName) <- foo $ do
+  (writePerson, readPerson , readFirstName, readLastName) <- foo $ do
     wp <- runStatic writePerson
     rp <- runStatic readPerson
     readFirstName <- runStatic readFirstName
-    return (wp, rp, readFirstName)
+    readLastName <- runStatic readLastName
+    return (wp, rp, readFirstName, readLastName)
 
   getLine; runWriteEntity writePerson $ Just ("Paul", ("Smith", Right "50N20E"))
   getLine; runReadEntity readFirstName >>= print
+  getLine; runReadEntity readLastName >>= print
   -- getLine; runReadEntity readLastName >>= print
   -- getLine; runReadEntity readAddress >>= print
   -- getLine; runReadEntity readCoords >>= print
