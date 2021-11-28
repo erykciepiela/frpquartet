@@ -28,24 +28,15 @@ snd' (_, (b, _)) = b
 
 main :: IO ()
 main = do
-  -- refs
-  _firstName <- ref @FirstName "first name"
-  _lastName <- ref @LastName "last name"
-  _location <- ref @(Either Address Coords) "location"
-  let person = _firstName |&| _lastName |&| _location
+  firstName <- ref @FirstName "first name"
+  lastName <- ref @LastName "last name"
+  location <- ref @(Either Address Coords) "location"
 
-  -- topics
-  _pressure <- topic @Pressure "pressure"
-  _temperature <- topic @Temperature "temperature"
-  _wind <- topic @Wind "wind"
-  let wheatherInfo = _pressure ||| _temperature ||| _wind
+  pressure <- topic @Pressure "pressure"
+  temperature <- topic @Temperature "temperature"
+  wind <- topic @Wind "wind"
 
-  app person wheatherInfo
-
-app :: Ref (FirstName, (LastName, Either Address Coords)) -> Topic (Either Pressure (Either Temperature Wind)) -> IO ()
-app person wheatherInfo = do
-
-  let writePerson = writeRef person
+  let writePerson = writeRef $ firstName |&| lastName |&| location
   getLine; writeEntity writePerson $ Just ("Paul", ("Smith", Right "50N20E"))
 
   let writeReversedFirstName = undefined >$< writePerson -- TODO
@@ -53,22 +44,22 @@ app person wheatherInfo = do
   let writeNull = null
   getLine; writeEntity writeNull $ Just 12
 
-  let readPerson = readRef person
+  let readPerson = readRef $ firstName |&| lastName |&| location
   getLine; readEntity readPerson >>= print
 
-  let readFirstName = fst <$> readPerson
+  let readFirstName = readRef firstName
   getLine; readEntity readFirstName >>= print
 
-  let readLastName = snd' <$> readPerson
+  let readLastName = readRef lastName
   getLine; readEntity readLastName >>= print
 
   let readFirstAndLastName = (,) <$> readFirstName <*> readLastName
   getLine; readEntity readFirstAndLastName >>= print
 
-  let readAddress = fst $ expand $ thrd <$> readPerson
+  let readAddress = fst $ expand $ readRef location
   getLine; readEntity readAddress >>= print
 
-  let readCoords = snd $ expand $ thrd <$> readPerson
+  let readCoords = snd $ expand $ readRef location
   getLine; readEntity readCoords >>= print
 
   let readConstant = constant 5
@@ -86,13 +77,13 @@ app person wheatherInfo = do
   let tupleSwapped = invmap swap swap tuple
 
   --
-  let subscribeWheatherInfo = subscribeTopic wheatherInfo
+  let subscribeWheatherInfo = subscribeTopic $ pressure ||| temperature ||| wind
   subscribeStream subscribeWheatherInfo print
 
-  let subscribePressure = fst $ expand subscribeWheatherInfo
+  let subscribePressure = subscribeTopic pressure
   subscribeStream subscribePressure print
 
-  let subscribeTemperature = snd $ expand subscribeWheatherInfo
+  let subscribeTemperature = subscribeTopic temperature
   subscribeStream subscribeTemperature print
 
   let subscribeAdjustedPressure = (+ 10) <$> subscribePressure
@@ -104,7 +95,7 @@ app person wheatherInfo = do
   let subscribeEmpty = empty @Int
   subscribeStream subscribeEmpty print
 
-  let writeWhetherInfo = writeTopic wheatherInfo
+  let writeWhetherInfo = writeTopic $ pressure ||| temperature ||| wind
 
   let writePressure = fst $ expand writeWhetherInfo
   getLine; writeStream writePressure 1002
