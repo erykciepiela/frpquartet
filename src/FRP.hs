@@ -2,6 +2,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
 module FRP
+  -- Defining
   ( FRP
   , Ref
   , Topic
@@ -15,7 +16,8 @@ module FRP
   , readRef'
   , subscribeTopic'
   , writeTopic'
-  -- runtime
+  -- Running
+  , RunFRP
   , runFRP
   , writeEntity
   , readEntity
@@ -38,31 +40,14 @@ import Control.Monad.State (StateT (StateT, runStateT), runState)
 import Data.Map hiding (null, empty)
 import Data.Dynamic (Dynamic, toDyn, fromDyn, Typeable)
 
+type FRP f a = Static RunFRP f a
+
+type RunFRP = StateT FRPState IO
 
 data FRPState = FRPState
   { topics :: Map String Dynamic
   , refs :: Map String Dynamic
   }
-
-instance Show FRPState where
-  show = const "FRPState"
-
-
-type FRP f a = Static (StateT FRPState IO) f a
-
-runFRP :: StateT FRPState IO a -> IO a
-runFRP statet = do
-  (a, state) <- runStateT statet emptyFRPState
-  print state
-  return a
-  where
-    emptyFRPState :: FRPState
-    emptyFRPState = FRPState
-      { topics = mempty
-      , refs = mempty}
-
-initFRP :: FRP p a -> StateT FRPState IO (p a)
-initFRP = runStatic
 
 -- | Ref instantiates CollapseP2P, ExpandS2P
 -- i.e. nothing :: Ref ()
@@ -207,7 +192,7 @@ instance Functor SubscribeStream where
 instance Invariant SubscribeStream where
   invmap f _ subscribeStream = fmap f subscribeStream
 
---
+-- Defining
 
 ref :: Typeable a => String -> FRP Ref a
 ref name = Static $ StateT $ \state -> case Data.Map.lookup name (refs state) of
@@ -236,43 +221,11 @@ topic name = Static $ StateT $ \state -> case Data.Map.lookup name (topics state
     return (topic, state { topics = insert name (toDyn topic) (topics state)})
   Just d -> return (fromDyn d undefined, state)
 
-connect :: SubscribeStream a -> WriteEntity a -> IO ()
-connect subscribeStream writeEntity = runSubscibeStream subscribeStream (runWriteEntity writeEntity . Just)
-
--- last but not least, things for free (these functions are not exported, it's just for documentation)
-
-_nothingRef :: Ref ()
-_nothingRef = nothing
-
-_nothingReadEntity :: ReadEntity ()
-_nothingReadEntity = nothing
-
-_nothingWriteEntity :: WriteEntity ()
-_nothingWriteEntity = nothing
-
-_constantReadEntity :: a -> ReadEntity a
-_constantReadEntity = constant
-
-_nullWriteEntity :: WriteEntity a
-_nullWriteEntity = null
-
-_neverTopic :: Topic Void
-_neverTopic = never
-
-_neverWriteStream :: WriteStream Void
-_neverWriteStream = never
-
-_emptySubscribeStream :: SubscribeStream a
-_emptySubscribeStream = empty
-
---
-
 writeRef' :: FRP Ref a -> FRP WriteEntity a
 writeRef' r = Static $ writeRef <$> runStatic r
 
 readRef' :: FRP Ref a -> FRP ReadEntity a
 readRef' r = Static $ readRef <$> runStatic r
-
 
 subscribeTopic' :: FRP Topic a -> FRP SubscribeStream a
 subscribeTopic' t = Static $ subscribeTopic <$> runStatic t
@@ -280,23 +233,63 @@ subscribeTopic' t = Static $ subscribeTopic <$> runStatic t
 writeTopic' :: FRP Topic a -> FRP WriteStream a
 writeTopic' t = Static $ writeTopic <$> runStatic t
 
+connect :: SubscribeStream a -> WriteEntity a -> IO ()
+connect subscribeStream writeEntity = runSubscibeStream subscribeStream (runWriteEntity writeEntity . Just)
 
-writeEntity :: FRP WriteEntity a -> Maybe a -> StateT FRPState IO ()
+-- last but not least, things for free (these functions are not exported, it's just for documentation)
+
+_nothingRef :: FRP Ref ()
+_nothingRef = nothing
+
+_nothingReadEntity :: FRP ReadEntity ()
+_nothingReadEntity = nothing
+
+_nothingWriteEntity :: FRP WriteEntity ()
+_nothingWriteEntity = nothing
+
+_constantReadEntity :: a -> FRP ReadEntity a
+_constantReadEntity = constant
+
+_nullWriteEntity :: FRP WriteEntity a
+_nullWriteEntity = null
+
+_neverTopic :: FRP Topic Void
+_neverTopic = never
+
+_neverWriteStream :: FRP WriteStream Void
+_neverWriteStream = never
+
+_emptySubscribeStream :: FRP SubscribeStream a
+_emptySubscribeStream = empty
+
+-- Running
+
+runFRP :: RunFRP a -> IO a
+runFRP statet = do
+  (a, _) <- runStateT statet emptyFRPState
+  return a
+  where
+    emptyFRPState :: FRPState
+    emptyFRPState = FRPState
+      { topics = mempty
+      , refs = mempty}
+
+writeEntity :: FRP WriteEntity a -> Maybe a -> RunFRP ()
 writeEntity writeEntity ma = do
-  we <- initFRP writeEntity
+  we <- runStatic writeEntity
   liftIO $ runWriteEntity we ma
 
-readEntity :: FRP ReadEntity a -> StateT FRPState IO (Maybe a)
+readEntity :: FRP ReadEntity a -> RunFRP (Maybe a)
 readEntity readEntity = do
-  re <- initFRP readEntity
+  re <- runStatic readEntity
   liftIO $ runReadEntity re
 
-subscribeStream :: FRP SubscribeStream a -> (a -> IO ()) -> StateT FRPState IO ()
+subscribeStream :: FRP SubscribeStream a -> (a -> IO ()) -> RunFRP ()
 subscribeStream subscribeStream action = do
-  ss <- initFRP subscribeStream
+  ss <- runStatic subscribeStream
   liftIO $ runSubscibeStream ss action
 
-writeStream :: FRP WriteStream a -> a -> StateT FRPState IO ()
+writeStream :: FRP WriteStream a -> a -> RunFRP ()
 writeStream writeStream a = do
-  ws <- initFRP writeStream
+  ws <- runStatic writeStream
   liftIO $ runWriteStream ws a

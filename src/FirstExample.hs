@@ -1,12 +1,10 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module FirstExample where
-import Prelude hiding (read, null, readIO)
 
 import Quartet
 import FRP
 import Data.Functor.Contravariant
-import Control.Concurrent
 import Control.Monad.IO.Class (MonadIO(liftIO))
 
 type FirstName = String
@@ -16,7 +14,6 @@ type Coords = String
 type Temperature = Float
 type Pressure = Int
 type Wind = Float
-
 
 firstName :: FRP Ref FirstName
 firstName = ref "first name"
@@ -40,7 +37,7 @@ person :: FRP Ref (FirstName, (LastName, Either Address Coords))
 person = firstName |&| lastName |&| location
 
 writePerson :: FRP WriteEntity (FirstName, (LastName, Either Address Coords))
-writePerson = writeRef' $ firstName |&| lastName |&| location
+writePerson = writeRef' person
 
 writeReversedFirstName :: FRP WriteEntity a
 writeReversedFirstName = undefined >$< writePerson -- TODO
@@ -114,6 +111,4 @@ main = runFRP $ do
   liftIO getLine; writeStream writePressure 1002
   liftIO getLine; writeStream writeTemeprature 23.8
   liftIO getLine; writeStream writeWind 23.8
-  -- wait for propagation
-  liftIO $ threadDelay 1000000
   return ()
