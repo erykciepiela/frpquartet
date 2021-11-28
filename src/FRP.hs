@@ -1,4 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeApplications #-}
 module FRP
   ( Ref (..)
   , ref
@@ -12,7 +14,13 @@ module FRP
   , writeEntity
   , subscribeStream
   , writeStream
-  , FRP.readIO
+  -- , FRP.readIO
+  , FRP'
+  , writeRef'
+  , readRef'
+  , subscribeTopic'
+  , writeTopic'
+  , foo
   ) where
 
 import           Control.Concurrent
@@ -26,8 +34,35 @@ import           Data.IORef
 import           Data.Void
 import           Prelude                    hiding (null)
 import           Quartet
+import Control.Monad.State (StateT (StateT, runStateT), runState)
+import Data.Map hiding (null, empty)
+import Data.Dynamic (Dynamic, toDyn, fromDyn, Typeable)
+
+
+data FRPState = FRPState
+  { topics :: Map String Dynamic
+  , refs :: Map String Dynamic
+  }
+
+instance Show FRPState where
+  show = const "FRPState"
+
+
+type FRP' f a = Static (StateT FRPState IO) f a
+
+foo :: StateT FRPState IO a -> IO a
+foo statet = do
+  (a, state) <- runStateT statet emptyFRPState
+  print state
+  return a
+  where
+    emptyFRPState :: FRPState
+    emptyFRPState = FRPState
+      { topics = mempty
+      , refs = mempty}
 
 type FRP = Static (WriterT [String] Identity)
+
 
 -- | Ref instantiates CollapseP2P, ExpandS2P
 -- i.e. nothing :: Ref ()
@@ -35,8 +70,8 @@ type FRP = Static (WriterT [String] Identity)
 -- i.e. expand :: Ref (Either a b) -> (Ref a, Ref b)
 -- Ref does not instantiate Functor nor Contravariant it's Invariant.
 data Ref a = Ref
-  { writeRef :: FRP WriteEntity a
-  , readRef  :: FRP ReadEntity a
+  { writeRef :: WriteEntity a
+  , readRef  :: ReadEntity a
   }
 
 instance ExpandS2P Ref where
@@ -174,31 +209,32 @@ instance Invariant SubscribeStream where
 
 --
 
-ref :: String -> IO (Ref a)
-ref name = do
-  ref <- newIORef Nothing
-  return $ Ref
-    { writeRef = Static $ WriterT $ Identity (WriteEntity $ writeIORef ref, [name])
-    , readRef = Static $ WriterT $ Identity (ReadEntity $ readIORef ref, [name])
-    }
+ref :: Typeable a => String -> FRP' Ref a
+ref name = Static $ StateT $ \state -> case Data.Map.lookup name (refs state) of
+  Nothing -> do
+    ioref <- newIORef Nothing
+    let ref = Ref
+          { writeRef = WriteEntity $ writeIORef ioref
+          , readRef = ReadEntity $ readIORef ioref
+          }
+    return (ref, state { refs = insert name (toDyn ref) (refs state) })
+  Just d -> return (fromDyn d undefined, state)
 
-type ReadIO a = IO a
-
-readIO :: String -> ReadIO a -> FRP ReadEntity a
-readIO name ioa = Static $ WriterT $ Identity (ReadEntity (Just <$> ioa), [name])
-
-topic :: String -> IO (Topic a)
-topic name = do
-  mvarsRef <- newIORef []
-  return $ Topic
-    { writeTopic = Static $ WriterT $ Identity (WriteStream $ \a -> do
-        mvars <- readIORef mvarsRef
-        for_ mvars $ \mvar -> putMVar mvar a, [name])
-    , subscribeTopic = Static $ WriterT $ Identity (SubscribeStream $ \action -> do
-        mvar <- newEmptyMVar
-        modifyIORef mvarsRef (mvar:)
-        void $ forkIO $ forever $ takeMVar mvar >>= action, [name])
-    }
+topic :: Typeable a => String -> FRP' Topic a
+topic name = Static $ StateT $ \state -> case Data.Map.lookup name (topics state) of
+  Nothing -> do
+    mvarsRef <- newIORef []
+    let topic = Topic
+          { writeTopic = Static $ WriterT $ Identity (WriteStream $ \a -> do
+              mvars <- readIORef mvarsRef
+              for_ mvars $ \mvar -> putMVar mvar a, [name])
+          , subscribeTopic = Static $ WriterT $ Identity (SubscribeStream $ \action -> do
+              mvar <- newEmptyMVar
+              modifyIORef mvarsRef (mvar:)
+              void $ forkIO $ forever $ takeMVar mvar >>= action, [name])
+          }
+    return (topic, state { topics = insert name (toDyn topic) (topics state)})
+  Just d -> return (fromDyn d undefined, state)
 
 writeEntity :: FRP WriteEntity a -> Maybe a -> IO ()
 writeEntity siea a = let (doWriteEntity, meta) = (runIdentity . runWriterT . runStatic) siea
@@ -252,3 +288,18 @@ _neverWriteStream = never
 
 _emptySubscribeStream :: SubscribeStream a
 _emptySubscribeStream = empty
+
+--
+
+writeRef' :: FRP' Ref a -> FRP' WriteEntity a
+writeRef' r = Static $ writeRef <$> runStatic r
+
+readRef' :: FRP' Ref a -> FRP' ReadEntity a
+readRef' r = Static $ readRef <$> runStatic r
+
+
+subscribeTopic' :: FRP' Topic a -> FRP' SubscribeStream a
+subscribeTopic' = undefined
+
+writeTopic' :: FRP' Topic a -> FRP' WriteStream a
+writeTopic' = undefined

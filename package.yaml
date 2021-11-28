@@ -24,6 +24,7 @@ dependencies:
 - mtl
 - time
 - invariant
+- containers
 
 library:
   source-dirs: src
