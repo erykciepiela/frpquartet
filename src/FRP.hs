@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module FRP
   -- Defining
   ( FRP
@@ -35,10 +36,11 @@ import           Data.Functor.Invariant
 import           Data.IORef
 import           Data.Void
 import           Prelude                    hiding (null)
-import           Quartet
+import Quartet
 import Control.Monad.State (StateT (StateT, runStateT), runState)
 import Data.Map hiding (null, empty)
 import Data.Dynamic (Dynamic, toDyn, fromDyn, Typeable)
+import Actegory
 
 type FRP f a = Static RunFRP f a
 
@@ -68,15 +70,19 @@ instance ExpandS2P Ref where
     , readRef = snd . expand $ readRef r
     })
 
-instance CollapseP2P Ref where
-  nothing = Ref
-    { writeRef = nothing
-    , readRef = nothing
+instance MonoidalCategory Ref (,) () where
+  none = Ref
+    { writeRef = none
+    , readRef = none
     }
-  ea |&| eb = Ref
-    { writeRef = writeRef ea |&| writeRef eb
-    , readRef = readRef ea |&| readRef eb
+  ea |.| eb = Ref
+    { writeRef = writeRef ea |.| writeRef eb
+    , readRef = readRef ea |.| readRef eb
     }
+
+instance Actegory Ref (,) () Topic where
+  (|>|) = undefined
+
 
 instance Invariant Ref where
   invmap f g ref = Ref
@@ -103,14 +109,14 @@ instance ExpandS2P Topic where
     , subscribeTopic = snd . expand $ subscribeTopic t
     })
 
-instance CollapseP2S Topic where
-  never = Topic
-    { writeTopic = never
-    , subscribeTopic = never
+instance MonoidalCategory Topic Either Void where
+  none = Topic
+    { writeTopic = none
+    , subscribeTopic = none
     }
-  ea ||| eb = Topic
-    { writeTopic = writeTopic ea ||| writeTopic eb
-    , subscribeTopic = subscribeTopic ea ||| subscribeTopic eb
+  ea |.| eb = Topic
+    { writeTopic = writeTopic ea |.| writeTopic eb
+    , subscribeTopic = subscribeTopic ea |.| subscribeTopic eb
     }
 
 instance Invariant Topic where
@@ -122,11 +128,14 @@ instance Invariant Topic where
 -- | WriteEntity instantiates CollapseP2P, ExpandS2P and Contravariant
 newtype WriteEntity a = WriteEntity { runWriteEntity :: Maybe a -> IO () }
 
-instance CollapseP2P WriteEntity where
-  nothing = WriteEntity $ \_ -> return ()
-  isa |&| isb = WriteEntity $ \mab -> do
+instance MonoidalCategory WriteEntity (,) () where
+  none = WriteEntity $ \_ -> return ()
+  isa |.| isb = WriteEntity $ \mab -> do
     runWriteEntity isa (fst <$> mab)
     runWriteEntity isb (snd <$> mab)
+
+instance Actegory WriteEntity (,) () WriteStream where
+  (|>|) = undefined
 
 instance ExpandS2P WriteEntity where
   expand w = (WriteEntity $ runWriteEntity w . fmap Left, WriteEntity $ runWriteEntity w . fmap Right)
@@ -140,13 +149,12 @@ instance Contravariant WriteEntity where
 -- | WriteStream instantiates CollapseP2S, ExpandS2P and Contravariant
 newtype WriteStream a = WriteStream { runWriteStream :: a -> IO () }
 
-instance CollapseP2S WriteStream where
-  never = WriteStream $ \_ -> return ()
-  isa ||| isb = WriteStream $ either (runWriteStream isa) (runWriteStream isb)
+instance MonoidalCategory WriteStream Either Void where
+  none = WriteStream $ \_ -> return ()
+  isa |.| isb = WriteStream $ either (runWriteStream isa) (runWriteStream isb)
 
 instance ExpandS2P WriteStream where
   expand w = (WriteStream $ runWriteStream w . Left, WriteStream $ runWriteStream w . Right)
-
 
 instance Invariant WriteStream where
   invmap _ = contramap
@@ -157,9 +165,12 @@ instance Contravariant WriteStream where
 -- | ReadEntity instantiates CollapseP2P, ExpandS2P and Functor
 newtype ReadEntity a = ReadEntity { runReadEntity :: IO (Maybe a) }
 
-instance CollapseP2P ReadEntity where
-  nothing = ReadEntity $ return (Just ())
-  oea |&| oeb = ReadEntity $ (\ma mb -> (,) <$> ma <*> mb) <$> runReadEntity oea <*> runReadEntity oeb
+instance MonoidalCategory ReadEntity (,) () where
+  none = ReadEntity $ return (Just ())
+  rea |.| reb = ReadEntity $ (\ma mb -> (,) <$> ma <*> mb) <$> runReadEntity rea <*> runReadEntity reb
+
+instance Actegory ReadEntity (,) () SubscribeStream where
+  (|>|) = undefined
 
 instance ExpandS2P ReadEntity where
   expand re = (ReadEntity $ maybe Nothing (either Just (const Nothing)) <$> runReadEntity re, ReadEntity $ maybe Nothing (either (const Nothing) Just) <$> runReadEntity re)
@@ -172,16 +183,17 @@ instance Functor ReadEntity where
 
 instance Applicative ReadEntity where
   pure = constant
-  ref <*> rea = (\(f, a) -> f a) <$> (ref |&| rea)
+  ref <*> rea = (\(f, a) -> f a) <$> (ref |.| rea)
 
 -- | SubscribeStream instantiates CollapseP2S, ExpandS2P and Functor
 newtype SubscribeStream a = SubscribeStream { runSubscibeStream :: (a -> IO ()) -> IO () }
 
-instance CollapseP2S SubscribeStream where
-  never = SubscribeStream $ \_ -> return ()
-  osa ||| osb = SubscribeStream $ \aorb2io -> do
+instance MonoidalCategory SubscribeStream Either Void where
+  none = SubscribeStream $ \_ -> return ()
+  osa |.| osb = SubscribeStream $ \aorb2io -> do
     runSubscibeStream osa $ aorb2io . Left
     runSubscibeStream osb $ aorb2io . Right
+
 
 instance ExpandS2P SubscribeStream where
   expand ss = (SubscribeStream $ \a2io -> runSubscibeStream ss $ \aorb -> either a2io (const (return ())) aorb, SubscribeStream $ \b2io -> runSubscibeStream ss $ \aorb -> either (const (return ())) b2io aorb)
@@ -239,25 +251,25 @@ connect subscribeStream writeEntity = runSubscibeStream subscribeStream (runWrit
 -- last but not least, things for free (these functions are not exported, it's just for documentation)
 
 _nothingRef :: FRP Ref ()
-_nothingRef = nothing
+_nothingRef = none
 
 _nothingReadEntity :: FRP ReadEntity ()
-_nothingReadEntity = nothing
+_nothingReadEntity = none
 
 _nothingWriteEntity :: FRP WriteEntity ()
-_nothingWriteEntity = nothing
+_nothingWriteEntity = none
 
 _constantReadEntity :: a -> FRP ReadEntity a
 _constantReadEntity = constant
 
 _nullWriteEntity :: FRP WriteEntity a
-_nullWriteEntity = null
+_nullWriteEntity = null ()
 
 _neverTopic :: FRP Topic Void
-_neverTopic = never
+_neverTopic = none
 
 _neverWriteStream :: FRP WriteStream Void
-_neverWriteStream = never
+_neverWriteStream = none
 
 _emptySubscribeStream :: FRP SubscribeStream a
 _emptySubscribeStream = empty
@@ -293,3 +305,14 @@ writeStream :: FRP WriteStream a -> a -> RunFRP ()
 writeStream writeStream a = do
   ws <- runStatic writeStream
   liftIO $ runWriteStream ws a
+
+--
+
+enrichSubscribeStream :: ReadEntity a -> SubscribeStream b -> SubscribeStream (a, b)
+enrichSubscribeStream = (|>|)
+
+enrichWriteStream :: WriteEntity a -> WriteStream b -> WriteStream (a, b)
+enrichWriteStream = (|>|)
+
+enrichTopicStream :: Ref a -> Topic b -> Topic (a, b)
+enrichTopicStream = (|>|)

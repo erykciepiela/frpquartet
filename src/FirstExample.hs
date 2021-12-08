@@ -2,10 +2,12 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module FirstExample where
 
-import Quartet
+import Quartet hiding ((|||), (|&|))
 import FRP
 import Data.Functor.Contravariant
 import Control.Monad.IO.Class (MonadIO(liftIO))
+import Actegory
+import Data.Void (Void)
 
 type FirstName = String
 type LastName = String
@@ -34,7 +36,7 @@ wind :: FRP Topic Wind
 wind = topic "wind"
 
 person :: FRP Ref (FirstName, (LastName, Either Address Coords))
-person = firstName |&| lastName |&| location
+person = firstName |.| lastName |.| location
 
 writePerson :: FRP WriteEntity (FirstName, (LastName, Either Address Coords))
 writePerson = writeRef' person
@@ -43,7 +45,7 @@ writeReversedFirstName :: FRP WriteEntity a
 writeReversedFirstName = undefined >$< writePerson -- TODO
 
 readPerson :: FRP ReadEntity (FirstName, (LastName, Either Address Coords))
-readPerson = readRef' $ firstName |&| lastName |&| location
+readPerson = readRef' $ firstName |.| lastName |.| location
 
 readFirstName :: FRP ReadEntity FirstName
 readFirstName = readRef' firstName
@@ -64,7 +66,7 @@ readFive :: FRP ReadEntity Int
 readFive = constant 5
 
 subscribeWheatherInfo :: FRP SubscribeStream (Either Pressure (Either Temperature Wind))
-subscribeWheatherInfo = subscribeTopic' $ pressure ||| temperature ||| wind
+subscribeWheatherInfo = subscribeTopic' $ pressure |.| temperature |.| wind
 
 subscribePressure :: FRP SubscribeStream Pressure
 subscribePressure = subscribeTopic' pressure
@@ -76,13 +78,13 @@ subscribeAdjustedPressure :: FRP SubscribeStream Pressure
 subscribeAdjustedPressure = (+ 10) <$> subscribePressure
 
 subscribePressureAndTemperature :: FRP SubscribeStream (Either Pressure Temperature)
-subscribePressureAndTemperature = subscribePressure ||| subscribeTemperature
+subscribePressureAndTemperature = subscribePressure |.| subscribeTemperature
 
 subscribeEmpty :: FRP SubscribeStream Int
 subscribeEmpty = empty @Int
 
 writeWhetherInfo :: FRP WriteStream (Either Pressure (Either Temperature Wind))
-writeWhetherInfo = writeTopic' $ pressure ||| temperature ||| wind
+writeWhetherInfo = writeTopic' $ pressure |.| temperature |.| wind
 
 writePressure :: FRP WriteStream Pressure
 writePressure = writeTopic' pressure
@@ -95,6 +97,18 @@ writeTemeprature = writeTopic' temperature
 
 writeWind :: FRP WriteStream Wind
 writeWind = writeTopic' wind
+
+temperatureWithPerson :: FRP Topic ((FirstName, (LastName, Either Address Coords)), Temperature)
+temperatureWithPerson = person |>| temperature
+
+temperatureWithAddress :: FRP SubscribeStream (Address, Temperature)
+temperatureWithAddress = readAddress |>| subscribeTemperature
+
+writePersonAndTemperature :: FRP WriteStream ((FirstName, (LastName, Either Address Coords)), Temperature)
+writePersonAndTemperature = writePerson |>| writeTemeprature
+
+foo :: FRP WriteStream ((FirstName, (LastName, Either Address Coords)), Void)
+foo = writePerson |>| none
 
 main :: IO ()
 main = runFRP $ do
